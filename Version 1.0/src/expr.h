@@ -499,6 +499,13 @@ public:
         }
     }
 
+    void set_step(int s)
+    {
+        step = s;
+        for(int i = 0; i < nb_suc; i++)
+            suc[i].set_step(s);
+    }
+
     std::string to_string() const
     {
         std::string result = "";
