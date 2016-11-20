@@ -13,7 +13,7 @@ std::string itoa(int i)
     return std::string(temp);
 }
 
-typedef enum{FORALL, EXISTS, AND, OR, STATE, BOOL, PLUS, MINUS, TIMES, DIVIDE, EQUAL, NEQUAL, GREATER, GEQUAL, LESS, LEQUAL, INT, VAR, UNDEF} expr_type;
+typedef enum{NOT, FORALL, EXISTS, AND, OR, STATE, BOOL, PLUS, MINUS, TIMES, DIVIDE, EQUAL, NEQUAL, GREATER, GEQUAL, LESS, LEQUAL, INT, VAR, UNDEF} expr_type;
 
 class expression
 {
@@ -203,10 +203,7 @@ public:
             if(s[i + 1] == '=')
                 type = NEQUAL;
             else
-            {
-                std::cout << "ERROR: the symbol ! is unknown." << std::endl;
-                exit(3);
-            }
+                type = NOT;
             suc = new expression[2];
             nb_suc = 0;
             i++;
@@ -418,6 +415,8 @@ public:
         std::string temp;
         switch(type)
         {
+        case NOT:
+            return !(suc[0].z3());
         case FORALL:
             if(nb_suc == 2)
                 return z3::forall(suc[0].z3(), suc[1].z3());
@@ -505,6 +504,11 @@ public:
         std::string result = "";
         switch(type)
         {
+        case NOT:
+            result += "not(";
+            result += suc[0].to_string();
+            result += ")";
+            return result;
         case FORALL:
             result += "forall ";
             for(int i = 0; i < nb_suc - 1; i++)
