@@ -399,6 +399,7 @@ public:
 
     expression & operator=(const expression & e)
     {
+        delete[] suc;
         type = e.type;
         nb_suc = e.nb_suc;
         str = e.str;
@@ -482,15 +483,15 @@ public:
         case LEQUAL:
             return suc[0].z3() <= suc[1].z3();
         case INT:
-            return z3_context.int_val(std::atoi(str.c_str()));
+            return z3_context.int_val(str.c_str());
         case VAR:
             temp = str;
             if(str[str.length() - 1] != 39)
-                temp = temp + itoa(step);
+                temp = temp + itoa(step - 1);
             else
             {
                 temp.erase(str.length() - 1);
-                temp = temp + itoa(step + 1);
+                temp = temp + itoa(step);
             }
             return z3_context.int_const(temp.c_str());
         default:
@@ -665,17 +666,94 @@ public:
         case VAR:
             result = str;
             if(str[str.length() - 1] != 39)
-                result = result + itoa(step);
+                result = result + itoa(step - 1);
             else
             {
                 result.erase(str.length() - 1);
-                result = result + itoa(step + 1);
+                result = result + itoa(step);
             }
             return result;
         default:
             std::cout << "ERROR: the expression of undefined type cannot be transformed into z3 expr." << std::endl;
             exit(1);
         }
+    }
+
+    void reverse_self()
+    {
+        switch(type)
+        {
+        case AND:
+            type = OR;
+            break;
+        case OR:
+            type = AND;
+            break;
+        case BOOL:
+            if(str == "true")
+                str = "false";
+            else
+                str = "true";
+            break;
+        case EQUAL:
+            type = NEQUAL;
+            break;
+        case NEQUAL:
+            type = EQUAL;
+            break;
+        case GREATER:
+            type = LEQUAL;
+            break;
+        case GEQUAL:
+            type = LESS;
+            break;
+        case LESS:
+            type = GEQUAL;
+            break;
+        case LEQUAL:
+            type = GREATER;
+            break;
+        default:
+            break;
+        }
+        for(int i = 0; i < nb_suc; i++)
+            suc[i].reverse_self();
+    }
+
+    expression reverse_copy() const
+    {
+        expression result = *this;
+        result.reverse_self();
+        return result;
+    }
+
+    bool is_final_step() const
+    {
+        bool result = (type != STATE);
+        if(result == false)
+            return false;
+        for(int i = 0; i < nb_suc; i++)
+        {
+            result = result && suc[i].is_final_step();
+            if(result == false)
+                return false;
+        }
+        return result;
+    }
+
+    bool is_sat() const
+    {
+        z3::solver s(z3_context);
+        s.add(this->z3());
+        return (s.check() == z3::sat);
+    }
+
+    bool implies(const expression & e) const
+    {
+        z3::solver s(z3_context);
+        z3::expr c = z3::implies(this->z3(), e.z3());
+        s.add(!c);
+        return (s.check() == z3::unsat);
     }
 
 };

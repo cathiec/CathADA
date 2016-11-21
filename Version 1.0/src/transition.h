@@ -52,6 +52,8 @@ public:
 
     transition & operator=(const transition & t)
     {
+        delete[] state;
+        delete[] post;
         symbol = t.symbol;
         nb_state = t.nb_state;
         state = new std::string[nb_state];
