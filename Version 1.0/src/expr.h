@@ -6,6 +6,35 @@
 
 namespace cath {
 
+int location_size(int n)
+{
+    int k = 1;
+    while(k < n)
+        k *= 2;
+    return k;
+}
+
+bool is_2n(int n)
+{
+    switch(n)
+    {
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+    case 128:
+    case 256:
+    case 512:
+    case 1024:
+    case 2048:
+    case 4096: return true;
+    default: return false;
+    }
+}
+
 std::string itoa(int i)
 {
     char temp[10];
@@ -35,7 +64,7 @@ public:
     expression(const expression & e)
         :type(e.type), nb_suc(e.nb_suc), str(e.str), step(e.step)
     {
-        suc = new expression[nb_suc];
+        suc = new expression[location_size(nb_suc)];
         for(int i = 0; i < nb_suc; i++)
             suc[i] = e.suc[i];
     }
@@ -404,7 +433,7 @@ public:
         nb_suc = e.nb_suc;
         str = e.str;
         step = e.step;
-        suc = new expression[nb_suc];
+        suc = new expression[location_size(nb_suc)];
         for(int i = 0; i < nb_suc; i++)
             suc[i] = e.suc[i];
         return *this;
@@ -502,7 +531,8 @@ public:
 
     void set_step(int s)
     {
-        step = s;
+        if(type == STATE || type == VAR)
+            step = s;
         for(int i = 0; i < nb_suc; i++)
             suc[i].set_step(s);
     }
@@ -674,7 +704,7 @@ public:
             }
             return result;
         default:
-            std::cout << "ERROR: the expression of undefined type cannot be transformed into z3 expr." << std::endl;
+            std::cout << "ERROR: the expression of undefined type cannot be printed." << std::endl;
             exit(1);
         }
     }
@@ -754,6 +784,198 @@ public:
         z3::expr c = z3::implies(this->z3(), e.z3());
         s.add(!c);
         return (s.check() == z3::unsat);
+    }
+
+    expression operator*(const expression & e) const
+    {
+        //std::cout << "Compute: (" << to_string() << ") * (" << e.to_string() << ")" << std::endl;
+        if(type == BOOL && str == "true")
+            return e;
+        if(e.type == BOOL && e.str == "true")
+            return *this;
+        if((type == BOOL && str != "true") || (e.type == BOOL && e.str != "true"))
+            return expression("$false");
+        expression result;
+        if(type == AND)
+        {
+            if(e.type == AND)
+            {
+                result = *this;
+                for(int i = 0; i < e.nb_suc; i++)
+                    result = result * e.suc[i];
+            }
+            else if(e.type == OR)
+            {
+                result = (*this) * e.suc[0];
+                for(int i = 1; i < e.nb_suc; i++)
+                    result = result + ((*this) * e.suc[i]);
+            }
+            else
+            {
+                result = *this;
+                if(is_2n(result.nb_suc))
+                {
+                    delete[] result.suc;
+                    result.suc = new expression[result.nb_suc * 2];
+                    for(int i = 0; i < nb_suc; i++)
+                        result.suc[i] = suc[i];
+                }
+                result.suc[result.nb_suc] = e;
+                result.nb_suc++;
+            }
+        }
+        else if(type == OR)
+        {
+            if(e.type == OR)
+            {
+                result = expression("$false");
+                for(int i = 0; i < nb_suc; i++)
+                    for(int j = 0; j < e.nb_suc; j++)
+                        result = result + suc[i] * e.suc[j];
+            }
+            else
+            {
+                result = suc[0] * e;
+                for(int i = 1; i < nb_suc; i++)
+                    result = result + suc[i] * e;
+            }
+        }
+        else
+        {
+            if(e.type == AND)
+            {
+                result = e;
+                if(is_2n(result.nb_suc))
+                {
+                    delete[] result.suc;
+                    result.suc = new expression[result.nb_suc * 2];
+                    for(int i = 0; i < nb_suc; i++)
+                        result.suc[i] = suc[i];
+                }
+                result.suc[result.nb_suc] = *this;
+                result.nb_suc++;
+            }
+            else if(e.type == OR)
+            {
+                result = (*this) * e.suc[0];
+                for(int i = 1; i < e.nb_suc; i++)
+                    result = result + ((*this) * e.suc[i]);
+            }
+            else
+            {
+                result.type = AND;
+                result.nb_suc = 2;
+                result.suc = new expression[2];
+                result.suc[0] = *this;
+                result.suc[1] = e;
+            }
+        }
+        //std::cout << " *Finished: (" << to_string() << ") * (" << e.to_string() << ")" << std::endl;
+        return result;
+    }
+
+    expression operator+(const expression & e) const
+    {
+        //std::cout << "Compute: (" << to_string() << ") + (" << e.to_string() << ")" << std::endl;
+        if(type == BOOL && str != "true")
+            return e;
+        if(e.type == BOOL && e.str != "true")
+            return *this;
+        if((type == BOOL && str == "true") || (e.type == BOOL && e.str == "true"))
+            return expression("$true");
+        expression result;
+        if(type == AND)
+        {
+            if(e.type == OR)
+            {
+                result = *this;
+                for(int i = 0; i < e.nb_suc; i++)
+                    result = result + e.suc[i];
+            }
+            else
+            {
+                result.type = OR;
+                result.nb_suc = 2;
+                result.suc = new expression[2];
+                result.suc[0] = *this;
+                result.suc[1] = e;
+            }
+        }
+        else if(type == OR)
+        {
+            if(e.type == OR)
+            {
+                result = *this;
+                for(int i = 0; i < e.nb_suc; i++)
+                    result = result + e.suc[i];
+            }
+            else
+            {
+                result = *this;
+                if(is_2n(result.nb_suc))
+                {
+                    delete[] result.suc;
+                    result.suc = new expression[result.nb_suc * 2];
+                    for(int i = 0; i < nb_suc; i++)
+                        result.suc[i] = suc[i];
+                }
+                result.suc[result.nb_suc] = e;
+                result.nb_suc++;
+            }
+        }
+        else
+        {
+            if(e.type == OR)
+            {
+                result = e;
+                if(is_2n(result.nb_suc))
+                {
+                    delete[] result.suc;
+                    result.suc = new expression[result.nb_suc * 2];
+                    for(int i = 0; i < nb_suc; i++)
+                        result.suc[i] = suc[i];
+                }
+                result.suc[result.nb_suc] = *this;
+                result.nb_suc++;
+            }
+            else
+            {
+                result.type = OR;
+                result.nb_suc = 2;
+                result.suc = new expression[2];
+                result.suc[0] = *this;
+                result.suc[1] = e;
+            }
+        }
+        //std::cout << " *Finished: (" << to_string() << ") + (" << e.to_string() << ")" << std::endl;
+        return result;
+    }
+
+    expression DNF() const
+    {
+        expression result;
+        expression * temp;
+        switch(type)
+        {
+        case OR:
+            temp = new expression[nb_suc];
+            for(int i = 0; i < nb_suc; i++)
+                temp[i] = suc[i].DNF();
+            result = temp[0];
+            for(int i = 1; i < nb_suc; i++)
+                result = result + temp[i];
+            return result;
+        case AND:
+            temp = new expression[nb_suc];
+            for(int i = 0; i < nb_suc; i++)
+                temp[i] = suc[i].DNF();
+            result = temp[0];
+            for(int i = 1; i < nb_suc; i++)
+                result = result * temp[i];
+            return result;
+        default:
+            return *this;
+        }
     }
 
 };

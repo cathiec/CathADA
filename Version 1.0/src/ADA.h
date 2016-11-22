@@ -155,16 +155,6 @@ public:
         }
     }
 
-    expression post(std::string before, std::string s) const
-    {
-        return post(expression(before), s);
-    }
-
-    expression post(std::string before, const transition & t) const
-    {
-        return post(expression(before), t);
-    }
-
     ///*
     expression post(const expression & before, std::string s) const
     {
