@@ -1,0 +1,15 @@
+STATES
+q0 q1 q2 q3 q4
+
+SYMBOLS
+a b c
+
+VARIABLES
+x
+
+TRANSITIONS
+a(q0): &(&(#q1, <=(x, 8)), &(#q2, >(x, 3)))
+b(q1): &(#q3, >=(x, 6))
+b(q2): &(#q4, <=(x, 7))
+c(q3): >(x, 7)
+c(q4): <(x, 10)

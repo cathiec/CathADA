@@ -529,22 +529,6 @@ public:
         }
     }
 
-    void set_step(int s)
-    {
-        if(type == STATE || type == VAR || type == BOOL)
-        {
-            //std::cout << step << " to " << s << std::endl;
-            //std::cout << "  " << to_string();
-            step = s;
-            //std::cout << " to " << to_string() << std::endl;
-        }
-        else
-        {
-            for(int i = 0; i < nb_suc; i++)
-                suc[i].set_step(s);
-        }
-    }
-
     std::string to_string() const
     {
         std::string result = "";
@@ -611,8 +595,10 @@ public:
             return result;
         case STATE:
             return str;
+            //return itoa(step) + ':' + str;
         case BOOL:
             return str;
+            //return itoa(step) + ':' + str;
         case PLUS:
             result += suc[0].to_string();
             for(int i = 1; i < nb_suc; i++)
@@ -711,6 +697,7 @@ public:
                 result = result + itoa(step);
             }
             return result;
+            //return itoa(step) + ':' + result;
         default:
             std::cout << " ERROR: the expression of undefined type cannot be printed." << std::endl;
             exit(1);
@@ -988,16 +975,29 @@ public:
         }
     }
 
+    void set_step(int s)
+    {
+        step = s;
+        for(int i = 0; i < nb_suc; i++)
+            suc[i].set_step(s);
+    }
+
+    void up_step(int x)
+    {
+        step = step + x;
+        for(int i = 0; i < nb_suc; i++)
+            suc[i].up_step(x);
+    }
+
     bool always_implies(const expression & e) const
     {
+        //std::cout << to_string() << " -> " << e.to_string() << std::endl;
+        //std::cout << "[" << step << "]" << to_string() << " -> " << "[" << e.step << "]"  << e.to_string() << std::endl;
         z3::solver s(z3_context);
         z3::expr test = z3::implies(this->z3(), e.z3());
         s.add(!test);
         if(s.check() == z3::unsat)
-        {
-            //std::cout << to_string() << " -> " << e.to_string() << std::endl;
             return true;
-        }
         else
             return false;
     }

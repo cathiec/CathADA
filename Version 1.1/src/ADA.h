@@ -119,56 +119,43 @@ public:
         delete[] g;
     }
 
-    void post_replace(expression & before, std::string s) const
+    int post_replace(expression & before, const transition & t) const
     {
         if(before.type != STATE)
         {
+            int max = before.step;
             for(int i = 0; i < before.nb_suc; i++)
-                post_replace(before.suc[i], s);
+            {
+                int j = post_replace(before.suc[i], t);
+                if(j > max)
+                    max = j;
+            }
+            before.step = max;
+            return max;
         }
         else
         {
-            int current_step = before.step;
-            std::map<std::string, int>::const_iterator it = mS.find(s);
-            int pos_trans = it->second;
-            it = mQ.find(before.str);
-            int pos_state = it->second;
-            before = g[pos_trans].post[pos_state];
-            before.set_step(current_step + 1);
-        }
-    }
-
-    void post_replace(expression & before, const transition & t) const
-    {
-        if(before.type != STATE)
-        {
-            for(int i = 0; i < before.nb_suc; i++)
-                post_replace(before.suc[i], t);
-        }
-        else
-        {
-            int current_step = before.step;
             std::map<std::string, int>::const_iterator it = mQ.find(before.str);
             int pos_state = it->second;
+            int step_before = before.step;
             before = t.post[pos_state];
-            before.set_step(current_step + 1);
+            before.set_step(step_before + 1);
+            return before.step;
         }
     }
 
     ///*
     expression post(const expression & before, std::string s) const
     {
-        expression result = before;
-        post_replace(result, s);
-        result.step++;
-        return result;
+        std::map<std::string, int>::const_iterator it = mS.find(s);
+        int pos_trans = it->second;
+        return post(before, g[pos_trans]);
     }
 
     expression post(const expression & before, const transition & t) const
     {
         expression result = before;
         post_replace(result, t);
-        result.step++;
         return result;
     }
     //*/
@@ -182,9 +169,15 @@ public:
 
     expression abstract_post(const expression & before, const transition & t, const std::vector<expression> & interpolant) const
     {
+        //std::cout << before.step << ": " << before.to_string() << std::endl;
         expression result = post(before, t).DNF();
+        //std::cout << result.step << ": " << result.to_string() << std::endl;
+        //std::cout << "CONCRETE(" << result.step << "): " << result.to_string() << std::endl;
         if(result.is_final_step())
+        {
+            result.step--;
             return result;
+        }
         if(result.type == OR)
         {
             for(int i = 0; i < result.nb_suc; i++)
@@ -214,7 +207,7 @@ public:
                 {
                     expression right = interpolant[j];
                     right.set_step(interpolant_step);
-                    if(result.always_implies(right))
+                    if(psi.always_implies(right))
                         new_psi = new_psi * right;
                 }
                 if(temp1.size() > 0)
@@ -237,7 +230,7 @@ public:
             expression state;
             if(temp1.size() > 0)
                 state = temp1[0];
-            int interpolant_step = result.step + 1;
+            int interpolant_step = result.step+ 1;
             for(int j = 1; j < temp1.size(); j++)
                 state = state * temp1[j];
             expression psi = expression("$true");
@@ -250,7 +243,7 @@ public:
             {
                 expression right = interpolant[j];
                 right.set_step(interpolant_step);
-                if(result.always_implies(right))
+                if(psi.always_implies(right))
                     new_psi = new_psi * right;
             }
             if(temp1.size() > 0)
@@ -258,7 +251,7 @@ public:
             else
                 result = new_psi;
         }
-        else
+        else if(result.type != STATE)
         {
             int interpolant_step = result.step + 1;
             expression new_psi = expression("$true");
@@ -272,6 +265,7 @@ public:
             result = new_psi;
         }
         result.step = before.step + 1;
+        //std::cout << "ABSTRACT(" << result.step << "): " << result.to_string() << std::endl;
         return result;
     }
 
@@ -283,7 +277,7 @@ public:
         while(NEXT.size() > 0)
         {
             expression CURRENT = *(NEXT.end() - 1);
-            std::cout << CURRENT.to_string() << std::endl;
+            //std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
             if(CURRENT.is_final_step())
             {
                 z3::solver s(z3_context);
@@ -300,18 +294,14 @@ public:
             for(int i = 0; i < nb_trans; i++)
             {
                 expression POST = abstract_post(CURRENT, g[i], interpolant);
-                std::cout << "POST: " << POST.to_string() << std::endl;
+                //std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
                 if(POST.type == BOOL && POST.str != "true")
-                {
-                    //std::cout << "JUMP" << std::endl;
                     continue;
-                }
-                //std::cout << g[i].symbol << "(" << CURRENT.to_string() << ") = " << POST.to_string() << std::endl;
                 bool already = false;
                 for(int j = 0; j < NEXT.size(); j++)
                 {
                     expression temp = NEXT[j];
-                    temp.set_step(POST.step);
+                    temp.up_step(POST.step - temp.step);
                     if(POST.always_implies(temp))
                     {
                         already = true;
@@ -323,7 +313,7 @@ public:
                     for(int j = 0; j < PROCESSED.size(); j++)
                     {
                         expression temp = PROCESSED[j];
-                        temp.set_step(POST.step);
+                        temp.up_step(POST.step - temp.step);
                         if(POST.always_implies(temp))
                         {
                             already = true;
@@ -337,7 +327,7 @@ public:
                     while(NEXT.size() != (it - NEXT.begin()))
                     {
                         expression temp = *it;
-                        temp.set_step(POST.step);
+                        temp.up_step(POST.step - temp.step);
                         if(temp.always_implies(POST))
                         {
                             NEXT.erase(it);
@@ -349,7 +339,7 @@ public:
                     while(PROCESSED.size() != (it - PROCESSED.begin()))
                     {
                         expression temp = *it;
-                        temp.set_step(POST.step);
+                        temp.up_step(POST.step - temp.step);
                         if(temp.always_implies(POST))
                         {
                             PROCESSED.erase(it);
@@ -372,7 +362,7 @@ public:
         while(NEXT.size() > 0)
         {
             expression CURRENT = *(NEXT.end() - 1);
-            //std::cout << CURRENT.to_string() << std::endl;
+            std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
             if(CURRENT.is_final_step())
             {
                 z3::solver s(z3_context);
@@ -389,29 +379,41 @@ public:
             for(int i = 0; i < nb_trans; i++)
             {
                 expression POST = post(CURRENT, g[i]);
-                //std::cout << "POST: " << POST.to_string() << std::endl;
+                if(POST.is_final_step())
+                    POST.step--;
+                std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
                 bool already = false;
                 for(int j = 0; j < NEXT.size(); j++)
-                    if(POST.always_implies(NEXT[j]))
+                {
+                    expression temp = NEXT[j];
+                    temp.up_step(POST.step - temp.step);
+                    if(POST.always_implies(temp))
                     {
                         already = true;
                         break;
                     }
+                }
                 if(already == false)
                 {
                     for(int j = 0; j < PROCESSED.size(); j++)
-                        if(POST.always_implies(PROCESSED[j]))
+                    {
+                        expression temp = PROCESSED[j];
+                        temp.up_step(POST.step - temp.step);
+                        if(POST.always_implies(temp))
                         {
                             already = true;
                             break;
                         }
+                    }
                 }
                 if(already == false)
                 {
                     std::vector<expression>::iterator it = NEXT.begin();
                     while(NEXT.size() != (it - NEXT.begin()))
                     {
-                        if(it->always_implies(POST))
+                        expression temp = *it;
+                        temp.up_step(POST.step - temp.step);
+                        if(temp.always_implies(POST))
                         {
                             NEXT.erase(it);
                             continue;
@@ -421,14 +423,15 @@ public:
                     it = PROCESSED.begin();
                     while(PROCESSED.size() != (it - PROCESSED.begin()))
                     {
-                        if(it->always_implies(POST))
+                        expression temp = *it;
+                        temp.up_step(POST.step - temp.step);
+                        if(temp.always_implies(POST))
                         {
                             PROCESSED.erase(it);
                             continue;
                         }
                         it++;
                     }
-                    //std::cout << "ADD: " << POST.to_string() << std::endl;
                     NEXT.push_back(POST);
                 }
             }
