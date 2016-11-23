@@ -1,0 +1,12 @@
+STATES
+q0 q1
+
+SYMBOLS
+a
+
+VARIABLES
+x
+
+TRANSITIONS
+a(q0): &(=(x', 0), #q1)
+a(q1): &(=(x', +(x, 1)), #q1)

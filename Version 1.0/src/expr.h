@@ -531,10 +531,18 @@ public:
 
     void set_step(int s)
     {
-        if(type == STATE || type == VAR)
+        if(type == STATE || type == VAR || type == BOOL)
+        {
+            std::cout << step << " to " << s << std::endl;
+            std::cout << "  " << to_string();
             step = s;
-        for(int i = 0; i < nb_suc; i++)
-            suc[i].set_step(s);
+            std::cout << " to " << to_string() << std::endl;
+        }
+        else
+        {
+            for(int i = 0; i < nb_suc; i++)
+                suc[i].set_step(s);
+        }
     }
 
     std::string to_string() const
@@ -964,6 +972,7 @@ public:
             result = temp[0];
             for(int i = 1; i < nb_suc; i++)
                 result = result + temp[i];
+            result.step = step;
             return result;
         case AND:
             temp = new expression[nb_suc];
@@ -972,10 +981,27 @@ public:
             result = temp[0];
             for(int i = 1; i < nb_suc; i++)
                 result = result * temp[i];
+            result.step = step;
             return result;
         default:
             return *this;
         }
+    }
+
+    bool always_implies(const expression & e) const
+    {
+        z3::solver s(z3_context);
+        //std::cout << to_string() << " -> " << e.to_string() << std::endl;
+        //std::cout << step << " -> " << e.step << std::endl;
+        z3::expr test = z3::implies(this->z3(), e.z3());
+        s.add(!test);
+        if(s.check() == z3::unsat)
+        {
+            //std::cout << to_string() << " -> " << e.to_string() << std::endl;
+            return true;
+        }
+        else
+            return false;
     }
 
 };
