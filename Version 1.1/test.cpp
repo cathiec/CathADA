@@ -2,7 +2,7 @@
 
 int main(int argc, char ** argv)
 {
-    cath::ADA A("example1");
+    cath::ADA A("example2");
 
     std::vector<cath::expression> I;
     I.push_back(cath::expression("$false"));
@@ -12,8 +12,8 @@ int main(int argc, char ** argv)
     I.push_back(cath::expression("<=(x,10)"));
     I.push_back(cath::expression(">=(x,7)"));
     I.push_back(cath::expression("<=(x,8)"));
-    if(A.is_empty2(cath::expression("#q0")))
-    //if(A.is_empty(cath::expression("#q0"), I))
+    //if(A.is_empty2(cath::expression("#q0")))
+    if(A.is_empty(cath::expression("#q0"), I))
         std::cout << "EMPTY" << std::endl;
     else
         std::cout << "NOT EMPTY" << std::endl;

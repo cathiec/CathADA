@@ -138,8 +138,10 @@ public:
             std::map<std::string, int>::const_iterator it = mQ.find(before.str);
             int pos_state = it->second;
             int step_before = before.step;
+            //std::cout << "before = " << step_before << std::endl;
             before = t.post[pos_state];
             before.set_step(step_before + 1);
+            //std::cout << "after = " << before.step << std::endl;
             return before.step;
         }
     }
@@ -277,7 +279,7 @@ public:
         while(NEXT.size() > 0)
         {
             expression CURRENT = *(NEXT.end() - 1);
-            //std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
+            std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
             if(CURRENT.is_final_step())
             {
                 z3::solver s(z3_context);
@@ -294,7 +296,7 @@ public:
             for(int i = 0; i < nb_trans; i++)
             {
                 expression POST = abstract_post(CURRENT, g[i], interpolant);
-                //std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
+                std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
                 if(POST.type == BOOL && POST.str != "true")
                     continue;
                 bool already = false;
@@ -362,7 +364,7 @@ public:
         while(NEXT.size() > 0)
         {
             expression CURRENT = *(NEXT.end() - 1);
-            std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
+            //std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
             if(CURRENT.is_final_step())
             {
                 z3::solver s(z3_context);
@@ -378,16 +380,20 @@ public:
             PROCESSED.push_back(CURRENT);
             for(int i = 0; i < nb_trans; i++)
             {
-                expression POST = post(CURRENT, g[i]);
+                expression POST = post(CURRENT, g[i]).DNF();
                 if(POST.is_final_step())
                     POST.step--;
-                std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
+                expression temp1 = POST;
+                //std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
                 bool already = false;
                 for(int j = 0; j < NEXT.size(); j++)
                 {
-                    expression temp = NEXT[j];
-                    temp.up_step(POST.step - temp.step);
-                    if(POST.always_implies(temp))
+                    expression temp2 = NEXT[j];
+                    if(temp1.step > temp2.step)
+                        temp2.up_step(temp1.step - temp2.step);
+                    else if(temp1.step < temp2.step)
+                        temp1.up_step(temp2.step - temp1.step);
+                    if(temp1.always_implies(temp2))
                     {
                         already = true;
                         break;
@@ -397,9 +403,12 @@ public:
                 {
                     for(int j = 0; j < PROCESSED.size(); j++)
                     {
-                        expression temp = PROCESSED[j];
-                        temp.up_step(POST.step - temp.step);
-                        if(POST.always_implies(temp))
+                        expression temp2 = PROCESSED[j];
+                        if(temp1.step > temp2.step)
+                            temp2.up_step(temp1.step - temp2.step);
+                        else if(temp1.step < temp2.step)
+                            temp1.up_step(temp2.step - temp1.step);
+                        if(temp1.always_implies(temp2))
                         {
                             already = true;
                             break;
@@ -411,9 +420,12 @@ public:
                     std::vector<expression>::iterator it = NEXT.begin();
                     while(NEXT.size() != (it - NEXT.begin()))
                     {
-                        expression temp = *it;
-                        temp.up_step(POST.step - temp.step);
-                        if(temp.always_implies(POST))
+                        expression temp2 = *it;
+                        if(temp1.step > temp2.step)
+                            temp2.up_step(temp1.step - temp2.step);
+                        else if(temp1.step < temp2.step)
+                            temp1.up_step(temp2.step - temp1.step);
+                        if(temp2.always_implies(temp1))
                         {
                             NEXT.erase(it);
                             continue;
@@ -423,9 +435,12 @@ public:
                     it = PROCESSED.begin();
                     while(PROCESSED.size() != (it - PROCESSED.begin()))
                     {
-                        expression temp = *it;
-                        temp.up_step(POST.step - temp.step);
-                        if(temp.always_implies(POST))
+                        expression temp2 = *it;
+                        if(temp1.step > temp2.step)
+                            temp2.up_step(temp1.step - temp2.step);
+                        else if(temp1.step < temp2.step)
+                            temp1.up_step(temp2.step - temp1.step);
+                        if(temp2.always_implies(temp1))
                         {
                             PROCESSED.erase(it);
                             continue;
