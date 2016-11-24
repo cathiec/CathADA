@@ -182,21 +182,28 @@ public:
         }
         if(result.type == OR)
         {
+            expression temp = expression("$false");
             for(int i = 0; i < result.nb_suc; i++)
             {
                 std::vector<expression> temp1;
                 std::vector<expression> temp2;
-                for(int j = 0; j < result.suc[i].nb_suc; j++)
+                if(result.suc[i].type == STATE)
+                    temp1.push_back(result.suc[i]);
+                else if(result.suc[i].type == AND || result.suc[i].type == OR)
                 {
-                    if(result.suc[i].suc[j].type == STATE)
-                        temp1.push_back(result.suc[i].suc[j]);
-                    else
-                        temp2.push_back(result.suc[i].suc[j]);
+                    for(int j = 0; j < result.suc[i].nb_suc; j++)
+                    {
+                        if(result.suc[i].suc[j].type == STATE)
+                            temp1.push_back(result.suc[i].suc[j]);
+                        else
+                            temp2.push_back(result.suc[i].suc[j]);
+                    }
                 }
+                else
+                    temp2.push_back(result.suc[i]);
                 expression state;
                 if(temp1.size() > 0)
                     state = temp1[0];
-                int interpolant_step = result.step + 1;
                 for(int j = 1; j < temp1.size(); j++)
                     state = state * temp1[j];
                 expression psi = expression("$true");
@@ -204,19 +211,24 @@ public:
                     psi = temp2[0];
                 for(int j = 1; j < temp2.size(); j++)
                     psi = psi * temp2[j];
+                int interpolant_step = psi.biggest_x() + 1;
                 expression new_psi = expression("$true");
                 for(int j = 0; j < interpolant.size(); j++)
                 {
                     expression right = interpolant[j];
                     right.set_step(interpolant_step);
                     if(psi.always_implies(right))
+                    {
+                        right.set_step(result.step + 1);
                         new_psi = new_psi * right;
+                    }
                 }
                 if(temp1.size() > 0)
-                    result = state * new_psi;
+                    temp = temp + (state * new_psi);
                 else
-                    result = new_psi;
+                    temp = temp + new_psi;
             }
+            result = temp;
         }
         else if(result.type == AND)
         {
@@ -232,7 +244,6 @@ public:
             expression state;
             if(temp1.size() > 0)
                 state = temp1[0];
-            int interpolant_step = result.step+ 1;
             for(int j = 1; j < temp1.size(); j++)
                 state = state * temp1[j];
             expression psi = expression("$true");
@@ -240,13 +251,17 @@ public:
                 psi = temp2[0];
             for(int j = 1; j < temp2.size(); j++)
                 psi = psi * temp2[j];
+            int interpolant_step = psi.biggest_x() + 1;
             expression new_psi = expression("$true");
             for(int j = 0; j < interpolant.size(); j++)
             {
                 expression right = interpolant[j];
                 right.set_step(interpolant_step);
                 if(psi.always_implies(right))
+                {
+                    right.set_step(result.step + 1);
                     new_psi = new_psi * right;
+                }
             }
             if(temp1.size() > 0)
                 result = state * new_psi;
@@ -255,14 +270,17 @@ public:
         }
         else if(result.type != STATE)
         {
-            int interpolant_step = result.step + 1;
+            int interpolant_step = result.biggest_x() + 1;
             expression new_psi = expression("$true");
             for(int j = 0; j < interpolant.size(); j++)
             {
                 expression right = interpolant[j];
                 right.set_step(interpolant_step);
                 if(result.always_implies(right))
+                {
+                    right.set_step(result.step + 1);
                     new_psi = new_psi * right;
+                }
             }
             result = new_psi;
         }
@@ -364,7 +382,7 @@ public:
         while(NEXT.size() > 0)
         {
             expression CURRENT = *(NEXT.end() - 1);
-            //std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
+            std::cout << "(" << CURRENT.step << "): " << CURRENT.to_string() << std::endl;
             if(CURRENT.is_final_step())
             {
                 z3::solver s(z3_context);
@@ -384,7 +402,7 @@ public:
                 if(POST.is_final_step())
                     POST.step--;
                 expression temp1 = POST;
-                //std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
+                std::cout << "POST(" << POST.step << "): " << POST.to_string() << std::endl;
                 bool already = false;
                 for(int j = 0; j < NEXT.size(); j++)
                 {

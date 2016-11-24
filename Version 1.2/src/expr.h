@@ -992,14 +992,35 @@ public:
     bool always_implies(const expression & e) const
     {
         //std::cout << to_string() << " -> " << e.to_string() << std::endl;
-        //std::cout << "[" << step << "]" << to_string() << " -> " << "[" << e.step << "]"  << e.to_string() << std::endl;
+        //std::cout << "[" << biggest_x() << "]" << to_string() << " -> " << "[" << e.biggest_x() << "]"  << e.to_string() << std::endl;
         z3::solver s(z3_context);
         z3::expr test = z3::implies(this->z3(), e.z3());
         s.add(!test);
         if(s.check() == z3::unsat)
+        {
+            //std::cout << to_string() << " -> " << e.to_string() << std::endl;
             return true;
+        }
         else
             return false;
+    }
+
+    int biggest_x() const
+    {
+        int result = 0;
+        switch(type)
+        {
+        case VAR:
+            if(str[str.length() - 1] != 39)
+                return step - 1;
+            else
+                return step;
+        default:
+            for(int i = 0; i < nb_suc; i++)
+                if(suc[i].biggest_x() > result)
+                    result = suc[i].biggest_x();
+            return result;
+        }
     }
 
 };

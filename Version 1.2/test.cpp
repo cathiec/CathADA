@@ -6,12 +6,14 @@ int main(int argc, char ** argv)
 
     std::vector<cath::expression> I;
     I.push_back(cath::expression("$false"));
-    I.push_back(cath::expression(">=(x,5)"));
-    I.push_back(cath::expression("<=(x,9)"));
-    I.push_back(cath::expression(">=(x,6)"));
-    I.push_back(cath::expression("<=(x,10)"));
-    I.push_back(cath::expression(">=(x,7)"));
-    I.push_back(cath::expression("<=(x,8)"));
+    I.push_back(cath::expression(">=(x,0)"));
+    //I.push_back(cath::expression(">(x,3)"));
+    //I.push_back(cath::expression("<=(x,9)"));
+    //I.push_back(cath::expression(">=(x,6)"));
+    //I.push_back(cath::expression("<=(x,10)"));
+    //I.push_back(cath::expression(">(x,5)"));
+    //I.push_back(cath::expression(">=(x,7)"));
+    //I.push_back(cath::expression("<=(x,8)"));
     //if(A.is_empty2(cath::expression("#q0")))
     if(A.is_empty(cath::expression("#q0"), I))
         std::cout << "EMPTY" << std::endl;

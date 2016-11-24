@@ -2,11 +2,12 @@ STATES
 q0 q1
 
 SYMBOLS
-a
+a b
 
 VARIABLES
 x
 
 TRANSITIONS
-a(q0): &(=(x', 0), #q1)
+a(q0): &(=(x', 4), #q1)
 a(q1): &(=(x', +(x, 1)), #q1)
+b(q1): <(x, 3)
