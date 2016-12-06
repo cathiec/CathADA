@@ -2,6 +2,7 @@
 #define ADA_h
 
 #include "node.h"
+#include "interpolant.h"
 #include <fstream>
 #include <map>
 
@@ -328,6 +329,9 @@ public:
                                 {
                                     std::cout << "NOT REAL" << std::endl;
                                     found = true;
+
+                                    ;
+
                                     break;
                                 }
                                 else if(back_track->exp.str == init.str)

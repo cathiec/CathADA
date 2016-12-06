@@ -4,6 +4,29 @@ int main(int argc, char ** argv)
 {
     cath::ADA A("example1");
 
+    /*cath::expression e1("&(<=(x, 8), =(x', +(x, 1)))");
+    e1.set_step(1);
+    std::cout << e1.to_string() << std::endl;
+    cath::expression e2("&(>(x, 3), =(x', +(x, 1)))");
+    e2.set_step(1);
+    std::cout << e2.to_string() << std::endl;
+
+    cath::expression e3("&(>=(x, 6), =(x', +(x, 1)))");
+    e3.set_step(2);
+    std::cout << e3.to_string() << std::endl;
+    cath::expression e4("&(<=(x, 7), =(x', +(x, 1)))");
+    e4.set_step(2);
+    std::cout << e4.to_string() << std::endl;
+
+    cath::expression e5(">(x, 8)");
+    e5.set_step(3);
+    std::cout << e5.to_string() << std::endl;
+    cath::expression e6("<(x, 10)");
+    e6.set_step(3);
+    std::cout << e6.to_string() << std::endl;
+
+    std::cout << cath::compute_interpolant((e1 * e2 * e3 * e4).z3(), (e5 * e6).z3()) << std::endl;*/
+
     std::vector<cath::expression> I;
     I.push_back(cath::expression("$false"));
     I.push_back(cath::expression(">=(x, 0)"));
