@@ -35,12 +35,14 @@ public:
 
     bool find_cover(const expression & e) const
     {
-        if(e.always_implies(exp))
+        expression temp = e;
+        temp.set_step(exp.step + 1);
+        if(temp.always_implies(exp))
             return true;
         else
         {
             for(int i = 0; i < nb_down; i++)
-                if(down[i]->find_cover(e))
+                if(down[i]->find_cover(temp))
                     return true;
         }
         return false;

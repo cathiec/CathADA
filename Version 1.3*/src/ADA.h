@@ -368,6 +368,9 @@ public:
                                         INTERPOLANT.push_back(latest_interpolant);
                                         std::cout << "ADD INTERPOLANT: " << latest_interpolant.to_string() << std::endl;
                                     }
+                                    for(int j = 0; j < back_track->nb_down; j++)
+                                        delete back_track->down[j];
+                                    back_track->nb_down = 0;
                                     NEXT.push_back(back_track);
                                     std::cout << "NEXT ADD: " << back_track->exp.to_string() << std::endl;
                                     break;
@@ -387,19 +390,23 @@ public:
                 }
 
             }
-            for(int i = 0; i < nb_trans; i++)
+            else
             {
-                expression POST = abstract_post(CURRENT->exp, g[i], INTERPOLANT);
-                if(POST.type == BOOL && POST.str != "true")
-                    continue;
-                if(history.find_cover(POST) == false)
+                for(int i = 0; i < nb_trans; i++)
                 {
-                    CURRENT->down[CURRENT->nb_down] = new node(POST);
-                    CURRENT->down[CURRENT->nb_down]->up = CURRENT;
-                    CURRENT->down[CURRENT->nb_down]->symbol = i;
-                    std::cout << "ABS POST with " << g[i].symbol << ": " << CURRENT->down[CURRENT->nb_down]->exp.to_string() << std::endl;
-                    NEXT.push_back(CURRENT->down[CURRENT->nb_down]);
-                    CURRENT->nb_down = CURRENT->nb_down + 1;
+                    expression POST = abstract_post(CURRENT->exp, g[i], INTERPOLANT);
+                    std::cout << "ABS POST with " << g[i].symbol << ": " << POST.to_string() << std::endl;
+                    if(POST.type == BOOL && POST.str != "true")
+                        continue;
+                    if(history.find_cover(POST) == false)
+                    {
+                        CURRENT->down[CURRENT->nb_down] = new node(POST);
+                        CURRENT->down[CURRENT->nb_down]->up = CURRENT;
+                        CURRENT->down[CURRENT->nb_down]->symbol = i;
+                        //std::cout << "ABS POST with " << g[i].symbol << ": " << CURRENT->down[CURRENT->nb_down]->exp.to_string() << std::endl;
+                        NEXT.push_back(CURRENT->down[CURRENT->nb_down]);
+                        CURRENT->nb_down = CURRENT->nb_down + 1;
+                    }
                 }
             }
         }
