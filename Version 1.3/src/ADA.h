@@ -170,20 +170,33 @@ public:
         return abstract_post(before, g[pos_trans], interpolant);
     }
 
-    expression abstract_post(const expression & before, const transition & t, const std::vector<expression> & interpolant) const
+    expression abstract_post(const expression & before, const transition & t, const std::vector<expression> & interpolant,
+                             expression * p_result_state = NULL,
+                             expression * p_result_psi = NULL,
+                             expression * p_con_result = NULL) const
     {
         //std::cout << before.step << ": " << before.to_string() << std::endl;
         expression result = post(before, t).DNF();
+        if(p_con_result != NULL)
+            *p_con_result = result;
+        if(p_result_psi != NULL)
+            *p_result_psi = expression("$true");
         //std::cout << result.step << ": " << result.to_string() << std::endl;
         //std::cout << "CONCRETE(" << result.step << "): " << result.to_string() << std::endl;
         if(result.is_final_step())
         {
             result.step--;
+            if(p_result_psi != NULL)
+                *p_result_psi = result;
             return result;
         }
         if(result.type == OR)
         {
             expression temp = expression("$false");
+            if(p_result_psi != NULL)
+                *p_result_psi = expression("$false");
+            if(p_result_state != NULL)
+                *p_result_state = expression("$false");
             for(int i = 0; i < result.nb_suc; i++)
             {
                 std::vector<expression> temp1;
@@ -207,11 +220,15 @@ public:
                     state = temp1[0];
                 for(int j = 1; j < temp1.size(); j++)
                     state = state * temp1[j];
+                if(p_result_state != NULL)
+                    *p_result_state = (*p_result_state) + state;
                 expression psi = expression("$true");
                 if(temp2.size() > 0)
                     psi = temp2[0];
                 for(int j = 1; j < temp2.size(); j++)
                     psi = psi * temp2[j];
+                if(p_result_psi != NULL)
+                    *p_result_psi = (*p_result_psi) + psi;
                 int interpolant_step = psi.biggest_x() + 1;
                 expression new_psi = expression("$true");
                 for(int j = 0; j < interpolant.size(); j++)
@@ -247,11 +264,15 @@ public:
                 state = temp1[0];
             for(int j = 1; j < temp1.size(); j++)
                 state = state * temp1[j];
+            if(p_result_state != NULL)
+                *p_result_state = state;
             expression psi = expression("$true");
             if(temp2.size() > 0)
                 psi = temp2[0];
             for(int j = 1; j < temp2.size(); j++)
                 psi = psi * temp2[j];
+            if(p_result_psi != NULL)
+                *p_result_psi = psi;
             int interpolant_step = psi.biggest_x() + 1;
             expression new_psi = expression("$true");
             for(int j = 0; j < interpolant.size(); j++)
@@ -269,8 +290,10 @@ public:
             else
                 result = new_psi;
         }
-        else if(result.type != STATE)
+        /*else if(result.type != STATE)
         {
+            if(p_result_psi != NULL)
+                *p_result_psi = result;
             int interpolant_step = result.biggest_x() + 1;
             expression new_psi = expression("$true");
             for(int j = 0; j < interpolant.size(); j++)
@@ -284,7 +307,7 @@ public:
                 }
             }
             result = new_psi;
-        }
+        }*/
         result.step = before.step + 1;
         //std::cout << "ABSTRACT(" << result.step << "): " << result.to_string() << std::endl;
         return result;
@@ -296,7 +319,7 @@ public:
         std::vector<node *> NEXT;
         NEXT.push_back(&history);
         std::vector<expression> INTERPOLANT;
-        INTERPOLANT.push_back(expression("$false"));
+        //INTERPOLANT.push_back(expression("<=(x, 8)"));
         while(NEXT.size() > 0)
         {
             node * CURRENT = *(NEXT.end() - 1);
@@ -314,34 +337,49 @@ public:
                     bool found = false;
                     for(node * back_track = CURRENT->up; back_track != NULL && found == false; back_track = back_track->up)
                     {
+                        std::vector<expression> psi;
                         std::cout << "BACK: " << std::endl;
                         expression CURRENT_EXP = back_track->exp;
+                        expression CURRENT_STATES = CURRENT_EXP;
                         for(int i = word.size() - 1; i >= 0; i--)
                         {
                             std::cout << CURRENT_EXP.to_string() << std::endl;
+                            expression temp_psi;
                             CURRENT_EXP = post(CURRENT_EXP, g[word[i]]);
-                            std::cout << "CON POST with " << g[word[i]].symbol << ": " << CURRENT_EXP.to_string() << std::endl;
+                            abstract_post(CURRENT_STATES, g[word[i]], INTERPOLANT, &CURRENT_STATES, &temp_psi, NULL);
+                            psi.push_back(temp_psi);
+                            std::cout << "    CON POST with " << g[word[i]].symbol << ": " << CURRENT_EXP.to_string() << std::endl;
+                            //std::cout << "    PSI: " << temp_psi.to_string() << std::endl;
                             if(CURRENT_EXP.is_final_step())
                             {
                                 z3::solver s2(z3_context);
                                 s2.add(CURRENT_EXP.z3());
                                 if(s2.check() != z3::sat)
                                 {
-                                    std::cout << "NOT REAL" << std::endl;
+                                    std::cout << "    NOT REAL" << std::endl;
                                     found = true;
-
-                                    ;
-
+                                    expression latest_interpolant("$true");
+                                    for(int j = 0; j < psi.size() - 1; j++)
+                                    {
+                                        expression e1 = latest_interpolant * psi[j];
+                                        expression e2 = psi[j + 1];
+                                        latest_interpolant = trans_into_interpolant(compute_interpolant(e1.z3(), e2.z3()));
+                                        latest_interpolant.set_step(e2.step + 1);
+                                        INTERPOLANT.push_back(latest_interpolant);
+                                        std::cout << "ADD INTERPOLANT: " << latest_interpolant.to_string() << std::endl;
+                                    }
+                                    NEXT.push_back(back_track);
+                                    std::cout << "NEXT ADD: " << back_track->exp.to_string() << std::endl;
                                     break;
                                 }
                                 else if(back_track->exp.str == init.str)
                                 {
-                                    std::cout << "REAL" << std::endl;
+                                    std::cout << "    REAL" << std::endl;
                                     std::cout << s.get_model() << std::endl;
                                     return false;
                                 }
                                 else
-                                    std::cout << "SAT BUT NOT ENOUGH" << std::endl;
+                                    std::cout << "    SAT BUT NOT ENOUGH" << std::endl;
                             }
                         }
                         word.push_back(back_track->symbol);

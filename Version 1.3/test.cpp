@@ -2,108 +2,29 @@
 
 int main(int argc, char ** argv)
 {
-    cath::ADA A("example1");
-
-    /*cath::expression e1("&(<=(x, 8), =(x', +(x, 1)))");
+    /*
+    cath::expression e1("&(&(<=(x, 8), =(x', +(x, 1))), &(>(x, 3), =(x', +(x, 1))))");
+    cath::expression e2("&(&(>=(x, 6), =(x', +(x, 1))), &(<=(x, 7), =(x', +(x, 1))))");
+    cath::expression e3("&(>(x, 8), <(x, 10))");
     e1.set_step(1);
+    e2.set_step(2);
+    e3.set_step(3);
     std::cout << e1.to_string() << std::endl;
-    cath::expression e2("&(>(x, 3), =(x', +(x, 1)))");
-    e2.set_step(1);
     std::cout << e2.to_string() << std::endl;
-
-    cath::expression e3("&(>=(x, 6), =(x', +(x, 1)))");
-    e3.set_step(2);
     std::cout << e3.to_string() << std::endl;
-    cath::expression e4("&(<=(x, 7), =(x', +(x, 1)))");
-    e4.set_step(2);
-    std::cout << e4.to_string() << std::endl;
+    z3::expr i1 = cath::compute_interpolant(e1.z3(), (e2 * e3).z3());
+    z3::expr i2 = cath::compute_interpolant(i1 && e2.z3(), e3.z3());
+    std::cout << cath::interpolant(i1).to_string() << std::endl;
+    std::cout << cath::interpolant(i2).to_string() << std::endl;
+    //*/
 
-    cath::expression e5(">(x, 8)");
-    e5.set_step(3);
-    std::cout << e5.to_string() << std::endl;
-    cath::expression e6("<(x, 10)");
-    e6.set_step(3);
-    std::cout << e6.to_string() << std::endl;
-
-    std::cout << cath::compute_interpolant((e1 * e2 * e3 * e4).z3(), (e5 * e6).z3()) << std::endl;*/
-
-    std::vector<cath::expression> I;
-    I.push_back(cath::expression("$false"));
-    I.push_back(cath::expression(">=(x, 0)"));
-    I.push_back(cath::expression(">(x,3)"));
-    I.push_back(cath::expression("<=(x,9)"));
-    I.push_back(cath::expression(">=(x,6)"));
-    I.push_back(cath::expression("<=(x,10)"));
-    I.push_back(cath::expression(">(x,5)"));
-    I.push_back(cath::expression(">=(x,7)"));
-    I.push_back(cath::expression("<=(x,8)"));
-    //if(A.is_empty2(cath::expression("#q0"), I))
-    //if(A.is_empty(cath::expression("<(x, 3)")))
+    ///*
+    cath::ADA A("example4");
     if(A.is_empty(cath::expression("#q0")))
         std::cout << "EMPTY" << std::endl;
     else
         std::cout << "NOT EMPTY" << std::endl;
-
-    /*
-    cath::expression init = cath::expression("#q0");
-    cath::expression p1 = A.post(init, "a");
-    std::cout << p1.to_string() << std::endl;
-    cath::expression p2 = A.post(p1, "b");
-    std::cout << p2.to_string() << std::endl;
-    cath::expression p3 = A.post(p2, "c");
-    std::cout << p3.to_string() << std::endl;
-    //z3::expr p = p3.reverse_copy().z3();
-    z3::expr p = p3.z3();
-    std::cout << p << std::endl;
-
-    z3::solver s(cath::z3_context);
-    s.add(p);
-    std::cout << s.check() << std::endl;
-    if(s.check() == z3::sat)
-    {
-        std::cout << "proved" << "\n";
-        std::cout << "example:\n" << s.get_model() << "\n";
-    }
-    else
-    {
-        std::cout << "failed to prove" << "\n";
-        std::cout << "counter-example:\n" << s.get_model() << "\n";
-    }
-    */
-
-    /*
-    std::vector<cath::expression> I;
-    I.push_back(cath::expression(">=(x,5)"));
-    I.push_back(cath::expression("<=(x,9)"));
-    I.push_back(cath::expression(">=(x,6)"));
-    I.push_back(cath::expression("<=(x,10)"));
-    I.push_back(cath::expression(">=(x,7)"));
-    I.push_back(cath::expression("<=(x,8)"));
-    cath::expression init = cath::expression("#q0");
-    cath::expression p1 = A.abstract_post(init, "a", I);
-    std::cout << p1.to_string() << std::endl;
-    std::cout << std::endl;
-    cath::expression p2 = A.abstract_post(p1, "b", I);
-    std::cout << p2.to_string() << std::endl;
-    std::cout << std::endl;
-    cath::expression p3 = A.abstract_post(p2, "d", I);
-    std::cout << p3.to_string() << std::endl;
-    std::cout << std::endl;
-    cath::expression p4 = A.abstract_post(p3, "d", I);
-    std::cout << p4.to_string() << std::endl;
-    std::cout << std::endl;
-    cath::expression p5 = A.abstract_post(p4, "d", I);
-    std::cout << p5.to_string() << std::endl;
-
-    //cath::expression e("&(|(&(|(#a,#b),#c),#d),#e)");
-    //std::cout << p3.z3() << std::endl;
-    //std::cout << p1.to_string() << std::endl << std::endl;
-    //std::cout << "DNF: " << p1.DNF().to_string() << std::endl << std::endl;
-    //std::cout << p2.to_string() << std::endl << std::endl;
-    //std::cout << "DNF: " << p2.DNF().to_string() << std::endl << std::endl;
-    //std::cout << p3.to_string() << std::endl << std::endl;
-    //std::cout << "DNF: " << p3.DNF().to_string() << std::endl;
-    */
+    //*/
 
 	return 0;
 }
