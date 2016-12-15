@@ -70,85 +70,12 @@ z3::expr MAIN(const z3::expr & e)
     }
 }
 
-class expression
+z3::expr parse(std::string e, bool print = false)
 {
-
-public:
-
-    int step;
-    z3::expr _z3;
-
-public:
-
-    expression()
-        :step(0), _z3(context.bool_val(true))
-    {}
-
-    expression(const expression & e)
-        :step(e.step), _z3(e._z3)
-    {}
-
-    expression(const z3::expr e)
-        :step(1), _z3(e)
-    {}
-
-    expression(std::string e)
-        :step(1), _z3(context.bool_val(true))
-    {
-        std::string smt2 = "(assert " + e + ")";
-        _z3 = context.parse_string(smt2.c_str(), _DEFAULT_SORTS, _DECLS);
-    }
-
-    ~expression()
-    {}
-
-    expression & operator=(const expression & e)
-    {
-        step = e.step;
-        _z3 = e._z3;
-        return *this;
-    }
-
-    expression & operator=(const z3::expr & e)
-    {
-        step = 0;
-        _z3 = e;
-        return *this;
-    }
-
-    expression NNF() const
-    {
-        return cath::NNF(_z3);
-    }
-
-    expression MAIN() const
-    {
-        return cath::MAIN(_z3);
-    }
-
-    friend std::ostream & operator<<(std::ostream &, const expression &);
-
-};
-
-std::ostream & operator<<(std::ostream & o, const expression & e)
-{
-    o << e._z3;
-    return o;
-}
-
-expression bool_val(bool b)
-{
-    return expression(context.bool_val(b));
-}
-
-expression bool_const(std::string b)
-{
-    return expression(context.bool_const(b.c_str()));
-}
-
-expression int_const(std::string i)
-{
-    return expression(context.int_const(i.c_str()));
+    std::string smt2 = "(assert " + e + ")";
+    if(print)
+        std::cout << "\t-> z3::parse : " << smt2 << std::endl;
+    return context.parse_string(smt2.c_str(), _DEFAULT_SORTS, _DECLS);
 }
 
 }

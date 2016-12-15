@@ -3,7 +3,8 @@
 int main(int argc, char ** argv)
 {
     ///*
-    cath::ADA a("example1");
+    cath::ADA a("example1.ada", true);
+
     //*/
 
     /*
