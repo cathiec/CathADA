@@ -12,32 +12,31 @@ public:
 
     std::string _symbol;
 
-    int _nb_transitions;
-    std::vector<z3::expr>  _left;
     std::vector<z3::expr> _right;
 
 public:
 
     transition_group()
-        :_symbol("undefined"), _nb_transitions(0)
+        :_symbol("undefined")
     {}
 
-    transition_group(std::string s)
-        :_symbol(s), _nb_transitions(0)
-    {}
+    transition_group(std::string s, int nb_states = 0)
+        :_symbol(s)
+    {
+        for(int i = 0; i < nb_states; i++)
+            _right.push_back(parse("false", false));
+    }
 
     transition_group(const transition_group & tg)
-        :_symbol(tg._symbol), _nb_transitions(tg._nb_transitions), _left(tg._left), _right(tg._right)
+        :_symbol(tg._symbol), _right(tg._right)
     {}
 
     ~transition_group()
     {}
 
-    void add(std::string & left, std::string & right, bool print = false)
+    void replace(int pos, std::string right, bool print = false)
     {
-        _left.push_back(parse(left, print));
-        _right.push_back(parse(right, print));
-        _nb_transitions++;
+        _right[pos] = parse(right, print);
     }
 
 };

@@ -7,6 +7,14 @@
 
 namespace cath{
 
+z3::expr parse(std::string e, bool print = false)
+{
+    std::string smt2 = "(assert " + e + ")";
+    if(print)
+        std::cout << "\t-> z3::parse : " << smt2 << std::endl;
+    return context.parse_string(smt2.c_str(), _DEFAULT_SORTS, _DECLS);
+}
+
 z3::expr NNF(const z3::expr e)
 {
     z3::goal g(context);
@@ -24,9 +32,9 @@ z3::expr MAIN(const z3::expr & e)
         {
             if(e.decl().name().str() == "and")
             {
-                z3::expr result = MAIN(e.arg(0));
+                z3::expr result = parse("true");
                 int num = e.num_args();
-                for(int i = 1; i < num; i++)
+                for(int i = 0; i < num; i++)
                 {
                     if(e.arg(i).decl().name().str() == "and"
                             || e.arg(i).decl().name().str() == "or"
@@ -39,9 +47,9 @@ z3::expr MAIN(const z3::expr & e)
             }
             else if(e.decl().name().str() == "or")
             {
-                z3::expr result = MAIN(e.arg(0));
+                z3::expr result = parse("false");
                 int num = e.num_args();
-                for(int i = 1; i < num; i++)
+                for(int i = 0; i < num; i++)
                 {
                     if(e.arg(i).decl().name().str() == "and"
                             || e.arg(i).decl().name().str() == "or"
@@ -70,12 +78,23 @@ z3::expr MAIN(const z3::expr & e)
     }
 }
 
-z3::expr parse(std::string e, bool print = false)
+bool always_implies(const z3::expr & e1, const z3::expr & e2)
 {
-    std::string smt2 = "(assert " + e + ")";
-    if(print)
-        std::cout << "\t-> z3::parse : " << smt2 << std::endl;
-    return context.parse_string(smt2.c_str(), _DEFAULT_SORTS, _DECLS);
+    //std::cout << "CHECK: " << e1 << " -> " << e2 << std::endl;
+    z3::solver s(context);
+    s.add(!z3::implies(e1, e2));
+    if(s.check() == z3::unsat)
+    {
+        //std::cout << e1 << " -> " << e2 << std::endl;
+        return true;
+    }
+    else
+        return false;
+}
+
+bool is_always_false(const z3::expr & e)
+{
+    return always_implies(e, parse("false"));
 }
 
 }
