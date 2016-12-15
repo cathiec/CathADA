@@ -26,6 +26,10 @@ public:
         :_symbol(s), _nb_transitions(0)
     {}
 
+    transition_group(const transition_group & tg)
+        :_symbol(tg._symbol), _nb_transitions(tg._nb_transitions), _left(tg._left), _right(tg._right)
+    {}
+
     ~transition_group()
     {}
 
@@ -33,6 +37,7 @@ public:
     {
         _left.push_back(parse(left, print));
         _right.push_back(parse(right, print));
+        _nb_transitions++;
     }
 
 };

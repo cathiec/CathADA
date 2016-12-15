@@ -21,6 +21,13 @@ void declare(std::string name, z3::sort sort, bool print = false)
         std::cout << "\t-> z3::declare : " << temp << std::endl;
 }
 
+std::string itoa(int i)
+{
+    char temp[10];
+    std::sprintf(temp, "%d", i);
+    return std::string(temp);
+}
+
 }
 
 #endif

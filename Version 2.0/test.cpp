@@ -3,7 +3,15 @@
 int main(int argc, char ** argv)
 {
     ///*
-    cath::ADA a("example1.ada", true);
+    cath::ADA a("example1.ada");
+    z3::expr init = cath::parse("q0");
+    z3::expr s1 = a.concrete_post(init, a._g[0], 0);
+    z3::expr s2 = a.concrete_post(s1, a._g[1], 1);
+    z3::expr s3 = a.concrete_post(s2, a._g[2], 2);
+    z3::solver s(cath::context);
+    s.add(s3);
+    s.check();
+    std::cout << s.get_model() << std::endl;
 
     //*/
 

@@ -84,20 +84,17 @@ public:
                 break;
             else
             {
+                int pos = _SIGMA[temp];
+                cur >> temp;
+                std::string left = temp;
+                getline(cur, temp, '\n');
+                getline(cur, temp, '\n');
                 if(print)
                 {
-                    int pos = _SIGMA[temp];
-                    cur >> temp;
-                    std::string left = temp;
-                    getline(cur, temp, '\n');
-                    getline(cur, temp, '\n');
-                    if(print)
-                    {
-                        std::cout << "% cath::declare : (declare-transition " << _g[pos]._symbol << "(" << left << ")";
-                        std::cout << " = " << temp << ")" << std::endl;
-                    }
-                    _g[pos].add(left, temp, print);
+                    std::cout << "% cath::declare : (declare-transition " << _g[pos]._symbol << "(" << left << ")";
+                    std::cout << " = " << temp << ")" << std::endl;
                 }
+                _g[pos].add(left, temp, print);
             }
         }
     }
@@ -129,7 +126,31 @@ public:
     ~ADA()
     {}
 
+    z3::expr set_step(const z3::expr & e, int step_before, int step_after) const
+    {
+        z3::expr result = e;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < _X.size(); i++)
+            for(int j = 0; j <= step_before; j++)
+            {
+                std::string temp1 = _X[i] + itoa(j), temp2 = _X[i] + itoa(j + step_after - step_before);
+                from.push_back(context.int_const(temp1.c_str()));
+                to.push_back(context.int_const(temp2.c_str()));
+            }
+        return result.substitute(from, to);
+    }
 
+    z3::expr concrete_post(const z3::expr & before, const transition_group & tg, int step) const
+    {
+        z3::expr result = before;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < tg._nb_transitions; i++)
+        {
+            from.push_back(tg._left[i]);
+            to.push_back(set_step(tg._right[i], 1, step + 1));
+        }
+        return result.substitute(from, to);
+    }
 
 };
 
