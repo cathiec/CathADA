@@ -496,9 +496,7 @@ public:
                                 for(int k = j + 2; k < psi.size(); k++)
                                     e2 = e2 && psi[k];
                                 std::vector<z3::expr> interpolants_array = compute_interpolants_array(e1, e2);
-                                latest_interpolant = interpolants_array[0];
-                                for(int k = 1; k < interpolants_array.size(); k++)
-                                    latest_interpolant = latest_interpolant || interpolants_array[k];
+                                latest_interpolant = parse("true");
                                 for(int k = 0; k < interpolants_array.size(); k++)
                                 {
                                     if(interpolants_array[k].decl().name().str() != "true")
@@ -517,6 +515,7 @@ public:
                                         if(!already)
                                         {
                                             INTERPOLANT.push_back(pure_interpolant);
+                                            latest_interpolant = latest_interpolant && interpolants_array[k];
                                             if(print)
                                                 std::cout << "ADD INTERPOLANT: " << pure_interpolant << std::endl;
                                         }
