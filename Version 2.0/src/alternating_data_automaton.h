@@ -277,10 +277,46 @@ public:
         return true;
     }
 
+    z3::expr get_psi(const z3::expr & before, const transition_group & tg, int step) const
+    {
+        std::vector<z3::expr> dnf_array = DNF_array(concrete_post(MAIN(before), tg, step));
+        std::vector<z3::expr> psi_array;
+        for(int i = 0; i < dnf_array.size(); i++)
+        {
+            if(dnf_array[i].decl().name().str() == "and")
+            {
+                std::vector<z3::expr> constraints_array;
+                for(int j = 0; j < dnf_array[i].num_args(); j++)
+                {
+                    if(!dnf_array[i].arg(j).is_const())
+                        constraints_array.push_back(dnf_array[i].arg(j));
+                }
+                if(constraints_array.size() == 0)
+                {
+                    return parse("true");
+                }
+                else
+                {
+                    z3::expr constraints = constraints_array[0];
+                    for(int j = 1; j < constraints_array.size(); j++)
+                        constraints = constraints && constraints_array[j];
+                    psi_array.push_back(constraints);
+                }
+            }
+            else if(dnf_array[i].is_const())
+                return parse("true");
+            else
+                psi_array.push_back(dnf_array[i]);
+        }
+        z3::expr result = psi_array[0];
+        for(int i = 1; i < psi_array.size(); i++)
+            result = result || psi_array[i];
+        return result;
+    }
+
     z3::expr abstract_post(const z3::expr & before, const transition_group & tg, int step,
                            const std::vector<z3::expr> & interpolant) const
     {
-        //std::cout << "BEFORE: " << before << std::endl;
         std::vector<z3::expr> dnf_array = DNF_array(concrete_post(before, tg, step));
         std::vector<z3::expr> result_array;
         for(int i = 0; i < dnf_array.size(); i++)
@@ -421,6 +457,8 @@ public:
                     back_track != NULL && bad_proved == false;
                     back_track = back_track->_up)
                 {
+                    std::vector<z3::expr> psi;
+                    std::vector<int> psi_step;
                     z3::expr CURRENT = back_track->_e;
                     int CURRENT_STEP = back_track->_step;
                     z3::expr CURRENT_MAIN = back_track->_main;
@@ -432,24 +470,32 @@ public:
                         if(print)
                             std::cout << "<" << CURRENT_STEP << "," << CURRENT << ","
                                       << CURRENT_MAIN << ">" << std::endl;
+                        z3::expr current_psi = get_psi(CURRENT, _g[word[i]], CURRENT_STEP);
                         CURRENT = concrete_post(CURRENT, _g[word[i]], CURRENT_STEP++);
                         CURRENT_MAIN = main_post(CURRENT_MAIN, _g[word[i]]);
+                        psi.push_back(current_psi);
+                        psi_step.push_back(CURRENT_STEP);
                         if(print)
                             std::cout << "POST(" << _g[word[i]]._symbol << ") = "
                                       << "<" << CURRENT_STEP << "," << CURRENT << ","
                                       << CURRENT_MAIN << ">" << std::endl;
-                        if(is_always_false(CURRENT) ||
-                                (is_always_false(CURRENT_MAIN) && !is_sat(CURRENT)))
+                        if(is_always_false(CURRENT))
                         {
                             bad_proved = true;
                             if(print)
                                 std::cout << "Example is bad." << std::endl;
-                            // ADD INTERPOLANTS
-                            std::cout << "@@@@@ alternating_data_automaton.h : is_empty_abstract_mode() not finished" << std::endl;
-                            INTERPOLANT.push_back(parse("(<= x0 8)"));
-                            // ****************
+                            z3::expr latest_interpolant = parse("true");
+                            for(int j = 0; j < psi.size() - 1; j++)
+                            {
+                                z3::expr e1 = latest_interpolant && psi[j];
+                                z3::expr e2 = psi[j + 1];
+                                latest_interpolant = compute_interpolant(e1, e2);
+                                z3::expr pure_interpolant = set_step(latest_interpolant, psi_step[j], 0);
+                                INTERPOLANT.push_back(pure_interpolant);
+                                if(print)
+                                    std::cout << "ADD INTERPOLANT: " << pure_interpolant << std::endl;
+                            }
                             back_track->all_set_invalid();
-                            //std::cout << back_track->_e << " valid." << std::endl;
                             back_track->_valid = true;
                             NEXT.push_back(back_track);
                             break;
@@ -464,6 +510,10 @@ public:
                         {
                             if(print)
                                 std::cout << "Example seems good. But not enough." << std::endl;
+                        }
+                        else
+                        {
+                            std::cout << "STRANGE" << std::endl;
                         }
                     }
                     word.push_back(back_track->_symbol);

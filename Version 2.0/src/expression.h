@@ -56,38 +56,39 @@ z3::expr MAIN(const z3::expr & e)
         {
             if(e.decl().name().str() == "and")
             {
-                z3::expr result = parse("true");
-                int num = e.num_args();
-                for(int i = 0; i < num; i++)
+                std::vector<z3::expr> result_array;
+                for(int i = 0; i < e.num_args(); i++)
                 {
-                    if(e.arg(i).decl().name().str() == "and"
-                            || e.arg(i).decl().name().str() == "or"
-                            || e.arg(i).decl().name().str() == "not")
-                        result = result && MAIN(e.arg(i));
-                    else if(e.arg(i).is_const())
-                        result = result && e.arg(i);
+                    if(MAIN(e.arg(i)).decl().name().str() != "false")
+                        result_array.push_back(MAIN(e.arg(i)));
                 }
-                if(result.decl().name().str() == "true")
-                    result = parse("false");
-                return result.simplify();
+                if(result_array.size() == 0)
+                    return context.bool_val(false);
+                else
+                {
+                    z3::expr result = result_array[0];
+                    for(int i = 1; i < result_array.size(); i++)
+                        result = result && result_array[i];
+                    return result;
+                }
             }
             else if(e.decl().name().str() == "or")
             {
-                z3::expr result = parse("false");
-                int num = e.num_args();
-                for(int i = 0; i < num; i++)
+                std::vector<z3::expr> result_array;
+                for(int i = 0; i < e.num_args(); i++)
+                    result_array.push_back(MAIN(e.arg(i)));
+                if(result_array.size() == 0)
+                    return context.bool_val(false);
+                else
                 {
-                    if(e.arg(i).decl().name().str() == "and"
-                            || e.arg(i).decl().name().str() == "or"
-                            || e.arg(i).decl().name().str() == "not")
-                        result = result || MAIN(e.arg(i));
-                    else if(e.arg(i).is_const())
-                        result = result || e.arg(i);
+                    z3::expr result = result_array[0];
+                    for(int i = 1; i < result_array.size(); i++)
+                        result = result || result_array[i];
+                    return result;
                 }
-                return result.simplify();
             }
             else if(e.decl().name().str() == "not")
-                return MAIN(e.arg(0)).simplify();
+                return MAIN(e.arg(0));
             else if(e.is_const())
                 return e;
             else
@@ -96,7 +97,7 @@ z3::expr MAIN(const z3::expr & e)
     }
     else if(e.is_quantifier())
     {
-        return MAIN(e.body()).simplify();
+        return MAIN(e.body());
     }
     else
     {
@@ -121,6 +122,18 @@ bool always_implies(const z3::expr & e1, const z3::expr & e2)
 bool is_always_false(const z3::expr & e)
 {
     return always_implies(e, parse("false"));
+}
+
+z3::expr compute_interpolant(const z3::expr & e1, const z3::expr & e2)
+{
+    z3::expr pattern = z3::expr(context, Z3_mk_interpolant(context, e1));
+    Z3_model md;
+    pattern = (pattern && e2);
+    Z3_ast_vector temp;
+    Z3_lbool result = Z3_compute_interpolant(context, pattern, 0, &temp, &md);
+    if(result == Z3_L_FALSE)
+        return z3::expr(context, Z3_ast_vector_get(context, temp, 0));
+    return parse("true");
 }
 
 }
