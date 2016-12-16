@@ -19,7 +19,7 @@ int main(int argc, char ** argv)
     //*/
 
     ///*
-    cath::ADA A("example1");
+    cath::ADA A("example3");
     if(A.is_empty(cath::expression("#q0")))
         std::cout << "EMPTY" << std::endl;
     else
