@@ -5,11 +5,20 @@ int main(int argc, char ** argv)
     ///*
     cath::ADA a("example4.ada");
 
+
     if(a.is_empty(cath::parse("q0"), cath::ABSTRACT, true))
         std::cout << "EMPTY" << std::endl;
     else
         std::cout << "NOT EMPTY" << std::endl;
     //*/
+
+    /*
+    z3::expr e1 = cath::parse("(and q0 (or q1 q2))");
+    z3::expr e2 = cath::parse("(and q3 (or q4 q5))");
+    z3::expr e = (cath::parse("q6") || cath::parse("q0")) && (e1 || e2);
+    std::cout << e << std::endl;
+    std::cout << cath::DNF(e) << std::endl;
+
 
     /*
     cath::declare("x", cath::_INT);
