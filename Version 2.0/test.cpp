@@ -3,9 +3,9 @@
 int main(int argc, char ** argv)
 {
     ///*
-    cath::ADA a("example5.ada");
+    cath::ADA a("example4.ada");
 
-    if(a.is_empty(cath::parse("q0"), cath::CONCRETE, true))
+    if(a.is_empty(cath::parse("q0"), cath::ABSTRACT, true))
         std::cout << "EMPTY" << std::endl;
     else
         std::cout << "NOT EMPTY" << std::endl;

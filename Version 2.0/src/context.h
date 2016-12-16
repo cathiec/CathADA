@@ -1,8 +1,8 @@
 #ifndef context_h
 #define context_h
 
+#include "setting.h"
 #include <z3++.h>
-#include "expression.h"
 
 namespace cath{
 

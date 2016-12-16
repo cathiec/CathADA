@@ -1,7 +1,7 @@
 #ifndef alternating_data_automaton_h
 #define alternating_data_automaton_h
 
-#include "transition.h"
+#include "node.h"
 #include <fstream>
 #include <map>
 #include <tuple>
@@ -195,7 +195,7 @@ public:
             return false;
     }
 
-    bool is_empty(const z3::expr & init, check_mode m = CONCRETE, bool print = false) const
+    bool is_empty_concrete_mode(const z3::expr & init, bool print = false) const
     {
         std::vector<std::tuple<int, z3::expr, z3::expr> > NEXT;
         NEXT.push_back(std::make_tuple(0, init, MAIN(init)));
@@ -207,7 +207,7 @@ public:
             z3::expr CURRENT_MAIN = std::get<2>(NEXT[NEXT.size() - 1]);
             if(print)
                 std::cout << "<" << CURRENT_STEP << "," << CURRENT << "," << CURRENT_MAIN << ">" << std::endl;
-            if(is_sat(CURRENT, print))
+            if(is_sat(CURRENT, true))
                 return false;
             PROCESSED.push_back(NEXT[NEXT.size() - 1]);
             NEXT.pop_back();
@@ -271,9 +271,190 @@ public:
                     NEXT.push_back(std::make_tuple(CURRENT_STEP + 1, POST, POST_MAIN));
                 }
             }
-            std::cout << std::endl;
+            if(print)
+                std::cout << std::endl;
         }
         return true;
+    }
+
+    z3::expr abstract_post(const z3::expr & before, const transition_group & tg, int step,
+                           const std::vector<z3::expr> & interpolant) const
+    {
+        z3::expr result = DNF(concrete_post(before, tg, step));
+        // ABSTRACT POST
+        std::cout << "@@@@@ alternating_data_automaton.h : abstract_post() not finished" << std::endl;
+        int num = result.num_args();
+        if(result.decl().name().str() == "or")
+        {
+            ;
+        }
+        else
+        {
+            z3::expr states = parse("true");
+            z3::expr constraints = parse("true");
+            for(int i = 0; i < num; i++)
+            {
+                if(result.arg(i).is_const())
+                    states = states && result.arg(i);
+                else
+                    constraints = constraints && result.arg(i);
+            }
+            /*std::cout << "ORIGINAL: " << result << std::endl;
+            std::cout << "STATES: " << states << std::endl;
+            std::cout << "CONSTRAINTS: " << constraints << std::endl;*/
+            int interpolant_step = step + 1;
+            z3::expr new_constraints = parse("true");
+            for(int j = 0; j < interpolant.size(); j++)
+            {
+                z3::expr temp = set_step(interpolant[j], 0, interpolant_step);
+                if(always_implies(constraints, temp))
+                    new_constraints = new_constraints && temp;
+            }
+            return (states && new_constraints).simplify();
+        }
+        // *************
+    }
+
+    bool is_covered(const z3::expr & e, int step, const node * pn) const
+    {
+        if(!pn->_valid)
+            return false;
+        z3::expr temp = set_step(e, step, pn->_step);
+        if(always_implies(temp, pn->_e))
+        {
+            //std::cout << "!!!" << e << " -> " << pn->_e << std::endl;
+            return true;
+        }
+        else
+        {
+            for(int i = 0; i < pn->_nb_down; i++)
+                if(is_covered(e, step, pn->_down[i]))
+                    return true;
+        }
+        return false;
+    }
+
+    bool is_empty_abstract_mode(const z3::expr & init, bool print = false) const
+    {
+        node history(init, MAIN(init));
+        std::vector<node *> NEXT;
+        NEXT.push_back(&history);
+        std::vector<z3::expr> INTERPOLANT;
+        while(NEXT.size() > 0)
+        {
+            node * p_CURRENT = NEXT[NEXT.size() - 1];
+            if(!p_CURRENT->_valid)
+            {
+                NEXT.pop_back();
+                continue;
+            }
+            if(print)
+                std::cout << "<" << p_CURRENT->_step << "," << p_CURRENT->_e << ","
+                          << p_CURRENT->_main << ">" << std::endl;
+            NEXT.pop_back();
+            if(is_sat(p_CURRENT->_e, print))
+            {
+                if(print)
+                    std::cout << std::endl << "Example found. But not enough."
+                              << std::endl << std::endl;
+                std::vector<int> word;
+                word.push_back(p_CURRENT->_symbol);
+                bool bad_proved = false;
+                for(node * back_track = p_CURRENT->_up;
+                    back_track != NULL && bad_proved == false;
+                    back_track = back_track->_up)
+                {
+                    z3::expr CURRENT = back_track->_e;
+                    int CURRENT_STEP = back_track->_step;
+                    z3::expr CURRENT_MAIN = back_track->_main;
+                    if(print)
+                        std::cout << "BACK: <" << CURRENT_STEP << "," << CURRENT << ","
+                                  << CURRENT_MAIN << ">" << std::endl;
+                    for(int i = word.size() - 1; i >= 0; i--)
+                    {
+                        if(print)
+                            std::cout << "<" << CURRENT_STEP << "," << CURRENT << ","
+                                      << CURRENT_MAIN << ">" << std::endl;
+                        CURRENT = concrete_post(CURRENT, _g[word[i]], CURRENT_STEP++);
+                        CURRENT_MAIN = main_post(CURRENT_MAIN, _g[word[i]]);
+                        if(print)
+                            std::cout << "POST(" << _g[word[i]]._symbol << ") = "
+                                      << "<" << CURRENT_STEP << "," << CURRENT << ","
+                                      << CURRENT_MAIN << ">" << std::endl;
+                        if(is_always_false(CURRENT) ||
+                                (is_always_false(CURRENT_MAIN) && !is_sat(CURRENT)))
+                        {
+                            bad_proved = true;
+                            if(print)
+                                std::cout << "Example is bad." << std::endl;
+                            // ADD INTERPOLANTS
+                            std::cout << "@@@@@ alternating_data_automaton.h : is_empty_abstract_mode() not finished" << std::endl;
+                            INTERPOLANT.push_back(parse("(>= x0 3)"));
+                            // ****************
+                            back_track->all_set_invalid();
+                            //std::cout << back_track->_e << " valid." << std::endl;
+                            back_track->_valid = true;
+                            NEXT.push_back(back_track);
+                            break;
+                        }
+                        else if(is_sat(CURRENT) && back_track == &history)
+                        {
+                            if(print)
+                                std::cout << "Example is good." << std::endl;
+                            return false;
+                        }
+                        else if(is_sat(CURRENT))
+                        {
+                            if(print)
+                                std::cout << "Example seems good. But not enough." << std::endl;
+                        }
+                    }
+                    word.push_back(back_track->_symbol);
+                    if(print)
+                        std::cout << std::endl;
+                }
+            }
+            else
+            {
+                for(int i = 0; i < _g.size(); i++)
+                {
+                    z3::expr POST_MAIN = main_post(p_CURRENT->_main, _g[i]);
+                    z3::expr POST = parse("true");
+                    if(is_always_false(POST_MAIN))
+                        POST = concrete_post(p_CURRENT->_e, _g[i], p_CURRENT->_step);
+                    else
+                        POST = abstract_post(p_CURRENT->_e, _g[i], p_CURRENT->_step, INTERPOLANT);
+                    if(print)
+                        std::cout << "POST(" << _g[i]._symbol << ") = " << "<" << p_CURRENT->_step + 1
+                                      << "," << POST << "," << POST_MAIN << ">" << std::endl;
+                    if(is_always_false(POST_MAIN) && !is_sat(POST))
+                        continue;
+                    if(is_always_false(POST))
+                        continue;
+                    if(is_covered(POST, p_CURRENT->_step + 1, &history) == false)
+                    {
+                        p_CURRENT->_down[p_CURRENT->_nb_down] = new node(POST, POST_MAIN);
+                        p_CURRENT->_down[p_CURRENT->_nb_down]->_step = p_CURRENT->_step + 1;
+                        p_CURRENT->_down[p_CURRENT->_nb_down]->_up = p_CURRENT;
+                        p_CURRENT->_down[p_CURRENT->_nb_down]->_symbol = i;
+                        //std::cout << "ADD: " << POST << std::endl;
+                        NEXT.push_back(p_CURRENT->_down[p_CURRENT->_nb_down]);
+                        p_CURRENT->_nb_down = p_CURRENT->_nb_down + 1;
+                    }
+                }
+            }
+            if(print)
+                std::cout << std::endl;
+        }
+        return true;
+    }
+
+    bool is_empty(const z3::expr & init, check_mode m = ABSTRACT, bool print = false) const
+    {
+        if(m == ABSTRACT)
+            return is_empty_abstract_mode(init, print);
+        else if(m == CONCRETE)
+            return is_empty_concrete_mode(init, print);
     }
 
 };

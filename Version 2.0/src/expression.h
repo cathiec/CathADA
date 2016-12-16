@@ -15,13 +15,17 @@ z3::expr parse(std::string e, bool print = false)
     return context.parse_string(smt2.c_str(), _DEFAULT_SORTS, _DECLS);
 }
 
-z3::expr NNF(const z3::expr e)
+z3::expr DNF(const z3::expr & e)
 {
     z3::goal g(context);
     g.add(e);
-    z3::tactic t(context, "nnf");
+    z3::tactic t = z3::repeat(z3::tactic(context, "split-clause") | z3::tactic(context, "skip"));
     z3::apply_result r = t(g);
-    return r[0].as_expr();
+    //std::cout << r << std::endl;
+    z3::expr result = r[0].as_expr();
+    for(int i = 1; i < r.size(); i++)
+        result = result || r[i].as_expr();
+    return result;
 }
 
 z3::expr MAIN(const z3::expr & e)
@@ -43,6 +47,8 @@ z3::expr MAIN(const z3::expr & e)
                     else if(e.arg(i).is_const())
                         result = result && e.arg(i);
                 }
+                if(result.decl().name().str() == "true")
+                    result = parse("false");
                 return result.simplify();
             }
             else if(e.decl().name().str() == "or")
