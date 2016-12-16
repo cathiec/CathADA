@@ -280,39 +280,96 @@ public:
     z3::expr abstract_post(const z3::expr & before, const transition_group & tg, int step,
                            const std::vector<z3::expr> & interpolant) const
     {
-        z3::expr result = DNF(concrete_post(before, tg, step));
-        // ABSTRACT POST
-        std::cout << "@@@@@ alternating_data_automaton.h : abstract_post() not finished" << std::endl;
-        int num = result.num_args();
-        if(result.decl().name().str() == "or")
+        //std::cout << "BEFORE: " << before << std::endl;
+        std::vector<z3::expr> dnf_array = DNF_array(concrete_post(before, tg, step));
+        std::vector<z3::expr> result_array;
+        for(int i = 0; i < dnf_array.size(); i++)
         {
-            ;
-        }
-        else
-        {
-            z3::expr states = parse("true");
-            z3::expr constraints = parse("true");
-            for(int i = 0; i < num; i++)
+            if(dnf_array[i].decl().name().str() == "and")
             {
-                if(result.arg(i).is_const())
-                    states = states && result.arg(i);
+                std::vector<z3::expr> states_array;
+                std::vector<z3::expr> constraints_array;
+                for(int j = 0; j < dnf_array[i].num_args(); j++)
+                {
+                    if(dnf_array[i].arg(j).is_const())
+                        states_array.push_back(dnf_array[i].arg(j));
+                    else
+                        constraints_array.push_back(dnf_array[i].arg(j));
+                }
+                if(constraints_array.size() == 0)
+                {
+                    z3::expr states = states_array[0];
+                    for(int j = 1; j < states_array.size(); j++)
+                        states = states && states_array[j];
+                    result_array.push_back(states);
+                }
                 else
-                    constraints = constraints && result.arg(i);
+                {
+                    z3::expr constraints = constraints_array[0];
+                    for(int j = 1; j < constraints_array.size(); j++)
+                        constraints = constraints && constraints_array[j];
+                    std::vector<z3::expr> new_constraints_array;
+                    for(int j = 0; j < interpolant.size(); j++)
+                    {
+                        z3::expr new_constraint = set_step(interpolant[j], 0, step + 1);
+                        if(always_implies(dnf_array[i], new_constraint))
+                            new_constraints_array.push_back(new_constraint);
+                    }
+                    if(new_constraints_array.size() == 0)
+                    {
+                        if(states_array.size() == 0)
+                            result_array.push_back(parse("true"));
+                        else
+                        {
+                            z3::expr states = states_array[0];
+                            for(int j = 1; j < states_array.size(); j++)
+                                states = states && states_array[j];
+                            result_array.push_back(states);
+                        }
+                    }
+                    else
+                    {
+                        z3::expr new_constraints = new_constraints_array[0];
+                        for(int j = 1; j < new_constraints_array.size(); j++)
+                            new_constraints = new_constraints && new_constraints_array[j];
+                        if(states_array.size() == 0)
+                            result_array.push_back(new_constraints);
+                        else
+                        {
+                            z3::expr states = states_array[0];
+                            for(int j = 1; j < states_array.size(); j++)
+                                states = states && states_array[j];
+                            result_array.push_back(new_constraints && states);
+                        }
+                    }
+                }
             }
-            /*std::cout << "ORIGINAL: " << result << std::endl;
-            std::cout << "STATES: " << states << std::endl;
-            std::cout << "CONSTRAINTS: " << constraints << std::endl;*/
-            int interpolant_step = step + 1;
-            z3::expr new_constraints = parse("true");
-            for(int j = 0; j < interpolant.size(); j++)
+            else if(dnf_array[i].is_const())
+                result_array.push_back(dnf_array[i]);
+            else
             {
-                z3::expr temp = set_step(interpolant[j], 0, interpolant_step);
-                if(always_implies(constraints, temp))
-                    new_constraints = new_constraints && temp;
+                std::vector<z3::expr> new_constraints_array;
+                for(int j = 0; j < interpolant.size(); j++)
+                {
+                    z3::expr new_constraint = set_step(interpolant[j], 0, step + 1);
+                    if(always_implies(dnf_array[i], new_constraint))
+                        new_constraints_array.push_back(new_constraint);
+                }
+                if(new_constraints_array.size() == 0)
+                    result_array.push_back(parse("true"));
+                else
+                {
+                    z3::expr new_constraints = new_constraints_array[0];
+                    for(int j = 1; j < new_constraints_array.size(); j++)
+                        new_constraints = new_constraints && new_constraints_array[j];
+                    result_array.push_back(new_constraints);
+                }
             }
-            return (states && new_constraints).simplify();
         }
-        // *************
+        z3::expr result = result_array[0];
+        for(int i = 1; i < result_array.size(); i++)
+            result = result || result_array[i];
+        return result;
     }
 
     bool is_covered(const z3::expr & e, int step, const node * pn) const
@@ -389,7 +446,7 @@ public:
                                 std::cout << "Example is bad." << std::endl;
                             // ADD INTERPOLANTS
                             std::cout << "@@@@@ alternating_data_automaton.h : is_empty_abstract_mode() not finished" << std::endl;
-                            INTERPOLANT.push_back(parse("(>= x0 3)"));
+                            INTERPOLANT.push_back(parse("(<= x0 8)"));
                             // ****************
                             back_track->all_set_invalid();
                             //std::cout << back_track->_e << " valid." << std::endl;

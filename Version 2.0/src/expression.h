@@ -36,6 +36,18 @@ z3::expr DNF(const z3::expr & e)
     return result;
 }
 
+std::vector<z3::expr> DNF_array(const z3::expr & e)
+{
+    z3::goal g(context);
+    g.add(NNF(e));
+    z3::tactic t = z3::repeat(z3::tactic(context, "split-clause") | z3::tactic(context, "skip"));
+    z3::apply_result r = t(g);
+    std::vector<z3::expr> result;
+    for(int i = 0; i < r.size(); i++)
+        result.push_back(r[i].as_expr());
+    return result;
+}
+
 z3::expr MAIN(const z3::expr & e)
 {
     if(e.is_app())
