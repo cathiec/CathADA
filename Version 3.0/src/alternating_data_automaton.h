@@ -21,6 +21,7 @@ public:
     std::string _i;
 
     std::vector<std::string> _F;
+    std::map<std::string, int> _F_index;
 
     std::map<std::string, int> _SIGMA;
 
@@ -75,6 +76,7 @@ public:
             else
             {
                 _F.push_back(temp);
+                _F_index[temp] = 1;
                 if(print)
                     std::cout << "% cath::declare : (declare-final-state " << temp << ")" << std::endl;
             }
@@ -222,14 +224,33 @@ public:
         return result.substitute(from, to);
     }
 
+    bool is_always_false(const z3::expr & e) const
+    {
+        z3::solver s(context);
+        s.add(e);
+        if(s.check())
+            return false;
+        else
+            return true;
+    }
+
     bool is_sat(const z3::expr & e, bool print = false, z3::solver * p_solver = NULL) const
     {
         z3::expr temp = e;
         z3::expr_vector from(context), to(context);
         for(int i = 0; i < _Q.size(); i++)
         {
-            from.push_back(parse(_Q[i]));
-            to.push_back(parse("false"));
+            int exist = _F_index.find(_Q[i])->second;
+            if(exist != 1)
+            {
+               from.push_back(parse(_Q[i]));
+               to.push_back(parse("false"));
+            }
+            else
+            {
+                from.push_back(parse(_Q[i]));
+                to.push_back(parse("true"));
+            }
         }
         temp = temp.substitute(from, to);
         z3::solver s(context);
@@ -252,29 +273,25 @@ public:
     bool is_empty_concrete_mode(bool print = false) const
     {
         z3::expr init = parse(_i);
-        std::vector<std::tuple<int, z3::expr, z3::expr> > NEXT;
-        NEXT.push_back(std::make_tuple(0, init, MAIN(init)));
-        std::vector<std::tuple<int, z3::expr, z3::expr> > PROCESSED;
+        std::vector<std::tuple<int, z3::expr> > NEXT;
+        NEXT.push_back(std::make_tuple(0, init));
+        std::vector<std::tuple<int, z3::expr> > PROCESSED;
         while(NEXT.size() > 0)
         {
             int CURRENT_STEP = std::get<0>(NEXT[NEXT.size() - 1]);
             z3::expr CURRENT = std::get<1>(NEXT[NEXT.size() - 1]);
-            z3::expr CURRENT_MAIN = std::get<2>(NEXT[NEXT.size() - 1]);
             if(print)
-                std::cout << "<" << CURRENT_STEP << "," << CURRENT << "," << CURRENT_MAIN << ">" << std::endl;
-            if(final_check(CURRENT) && is_sat(CURRENT, true))
+                std::cout << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
+            if(is_sat(CURRENT, true))
                 return false;
             PROCESSED.push_back(NEXT[NEXT.size() - 1]);
             NEXT.pop_back();
             for(int i = 0; i < _g.size(); i++)
             {
-                z3::expr POST_MAIN = main_post(CURRENT_MAIN, _g[i]);
                 z3::expr POST = concrete_post(CURRENT, _g[i], CURRENT_STEP);
                 if(print)
                     std::cout << "POST(" << _g[i]._symbol << ") = " << "<" << CURRENT_STEP + 1
-                                  << "," << POST << "," << POST_MAIN << ">" << std::endl;
-                if(is_always_false(POST_MAIN) && !is_sat(POST))
-                    continue;
+                                  << "," << POST << ">" << std::endl;
                 if(is_always_false(POST))
                     continue;
                 bool already = false;
@@ -301,7 +318,7 @@ public:
                 }
                 if(already == false)
                 {
-                    std::vector<std::tuple<int, z3::expr, z3::expr> >::iterator it = NEXT.begin();
+                    std::vector<std::tuple<int, z3::expr> >::iterator it = NEXT.begin();
                     while(NEXT.size() != (it - NEXT.begin()))
                     {
                         z3::expr target = set_step(std::get<1>(*it), std::get<0>(*it), CURRENT_STEP + 1);
@@ -323,7 +340,7 @@ public:
                         }
                         it++;
                     }
-                    NEXT.push_back(std::make_tuple(CURRENT_STEP + 1, POST, POST_MAIN));
+                    NEXT.push_back(std::make_tuple(CURRENT_STEP + 1, POST));
                 }
             }
             if(print)
@@ -372,7 +389,9 @@ public:
     z3::expr abstract_post(const z3::expr & before, const transition_group & tg, int step,
                            const std::vector<z3::expr> & interpolant) const
     {
+        //std::cout << "before: " << before << std::endl;
         std::vector<z3::expr> dnf_array = DNF_array(concrete_post(before, tg, step));
+        //std::cout << "after1: " << concrete_post(before, tg, step) << std::endl;
         std::vector<z3::expr> result_array;
         for(int i = 0; i < dnf_array.size(); i++)
         {
@@ -460,13 +479,14 @@ public:
         z3::expr result = result_array[0];
         for(int i = 1; i < result_array.size(); i++)
             result = result || result_array[i];
+        //std::cout << "after2: " << result << std::endl;
         return result;
     }
 
     bool is_covered(const z3::expr & e, int step, const node * pn) const
     {
-        if(!pn->_valid)
-            return false;
+        /*if(!pn->_valid)
+            return false;*/
         z3::expr temp = set_step(e, step, pn->_step);
         if(always_implies(temp, pn->_e))
         {
@@ -485,7 +505,7 @@ public:
     bool is_empty_abstract_mode(bool print = false) const
     {
         z3::expr init = parse(_i);
-        node history(init, MAIN(init));
+        node history(init);
         std::vector<node *> NEXT;
         NEXT.push_back(&history);
         std::vector<z3::expr> INTERPOLANT;
@@ -499,8 +519,7 @@ public:
                 continue;
             }
             if(print)
-                std::cout << "<" << p_CURRENT->_step << "," << p_CURRENT->_e << ","
-                          << p_CURRENT->_main << ">" << std::endl;
+                std::cout << "<" << p_CURRENT->_step << "," << p_CURRENT->_e << ">" << std::endl;
             NEXT.pop_back();
             if(is_sat(p_CURRENT->_e, print))
             {
@@ -518,26 +537,21 @@ public:
                     std::vector<int> psi_step;
                     z3::expr CURRENT = back_track->_e;
                     int CURRENT_STEP = back_track->_step;
-                    z3::expr CURRENT_MAIN = back_track->_main;
                     if(print)
-                        std::cout << "BACK: <" << CURRENT_STEP << "," << CURRENT << ","
-                                  << CURRENT_MAIN << ">" << std::endl;
+                        std::cout << "BACK: <" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
                     for(int i = word.size() - 1; i >= 0; i--)
                     {
                         if(print)
-                            std::cout << "<" << CURRENT_STEP << "," << CURRENT << ","
-                                      << CURRENT_MAIN << ">" << std::endl;
+                            std::cout << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
                         z3::expr current_psi = get_psi(CURRENT, _g[word[i]], CURRENT_STEP);
                         CURRENT = concrete_post(CURRENT, _g[word[i]], CURRENT_STEP++);
-                        CURRENT_MAIN = main_post(CURRENT_MAIN, _g[word[i]]);
                         psi.push_back(current_psi);
                         psi_step.push_back(CURRENT_STEP);
                         if(print)
                             std::cout << "POST(" << _g[word[i]]._symbol << ") = "
-                                      << "<" << CURRENT_STEP << "," << CURRENT << ","
-                                      << CURRENT_MAIN << ">" << std::endl;
-                        if(is_always_false(CURRENT)
-                                || (final_check(CURRENT_MAIN) && !is_sat(CURRENT)))
+                                      << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
+                        if(is_always_false(CURRENT) ||
+                                (i == 0 && !is_sat(CURRENT)))
                         {
                             bad_proved = true;
                             if(print)
@@ -603,22 +617,15 @@ public:
             {
                 for(int i = 0; i < _g.size(); i++)
                 {
-                    z3::expr POST_MAIN = main_post(p_CURRENT->_main, _g[i]);
-                    z3::expr POST = parse("true");
-                    if(final_check(POST_MAIN))
-                        POST = concrete_post(p_CURRENT->_e, _g[i], p_CURRENT->_step);
-                    else
-                        POST = abstract_post(p_CURRENT->_e, _g[i], p_CURRENT->_step, INTERPOLANT);
+                    z3::expr POST = abstract_post(p_CURRENT->_e, _g[i], p_CURRENT->_step, INTERPOLANT);
                     if(print)
                         std::cout << "POST(" << _g[i]._symbol << ") = " << "<" << p_CURRENT->_step + 1
-                                      << "," << POST << "," << POST_MAIN << ">" << std::endl;
-                    if(is_always_false(POST_MAIN) && !is_sat(POST))
-                        continue;
+                                      << "," << POST << ">" << std::endl;
                     if(is_always_false(POST))
                         continue;
                     if(is_covered(POST, p_CURRENT->_step + 1, &history) == false)
                     {
-                        p_CURRENT->_down[p_CURRENT->_nb_down] = new node(POST, POST_MAIN);
+                        p_CURRENT->_down[p_CURRENT->_nb_down] = new node(POST);
                         p_CURRENT->_down[p_CURRENT->_nb_down]->_step = p_CURRENT->_step + 1;
                         p_CURRENT->_down[p_CURRENT->_nb_down]->_up = p_CURRENT;
                         p_CURRENT->_down[p_CURRENT->_nb_down]->_symbol = i;

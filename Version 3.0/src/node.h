@@ -12,7 +12,6 @@ public:
 
     int _step;
     z3::expr _e;
-    z3::expr _main;
 
     node * _up;
 
@@ -25,8 +24,8 @@ public:
 
 public:
 
-    node(const z3::expr & e, const z3::expr & m)
-        :_step(0), _e(e), _main(m), _up(NULL), _nb_down(0), _symbol(-1), _valid(true)
+    node(const z3::expr & e)
+        :_step(0), _e(e), _up(NULL), _nb_down(0), _symbol(-1), _valid(true)
     {
         for(int i = 0; i < MAX_SYMBOL; i++)
             _down[i] = NULL;

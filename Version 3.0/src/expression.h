@@ -96,45 +96,6 @@ z3::expr MAIN(const z3::expr & e)
         return context.bool_val(false);
 }
 
-bool final_check(const z3::expr & e)
-{
-    if(e.is_bool())
-    {
-        if(e.decl().name().str() == "and")
-        {
-            for(int i = 0; i < e.num_args(); i++)
-                if(!final_check(e.arg(i)))
-                    return false;
-            return true;
-        }
-        else if(e.decl().name().str() == "or")
-        {
-            for(int i = 0; i < e.num_args(); i++)
-                if(final_check(e.arg(i)))
-                    return true;
-            return false;
-        }
-        else if(e.decl().name().str() == "not")
-            return final_check(e.arg(0));
-        else if(e.is_const())
-        {
-            if(e.decl().name().str() == "true" || e.decl().name().str() == "false")
-                return true;
-            else
-                return false;
-        }
-        else
-            return true;
-    }
-    else if(e.is_quantifier())
-        return final_check(e.body());
-    else
-    {
-        std::cout << "# ERROR: expression.h : final_check()" << std::endl;
-        exit(1);
-    }
-}
-
 bool always_implies(const z3::expr & e1, const z3::expr & e2)
 {
     //std::cout << "CHECK: " << e1 << " -> " << e2 << std::endl;
@@ -147,11 +108,6 @@ bool always_implies(const z3::expr & e1, const z3::expr & e2)
     }
     else
         return false;
-}
-
-bool is_always_false(const z3::expr & e)
-{
-    return always_implies(e, parse("false"));
 }
 
 z3::expr compute_interpolant(const z3::expr & e1, const z3::expr & e2)
