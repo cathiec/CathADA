@@ -1,0 +1,8 @@
+#!/bin/bash
+echo "# Deleting old file..."
+rm ./empty.exe
+echo "# Building new file..."
+g++ empty.cpp -o empty.exe -std=c++11 -lz3
+echo "# Checking emptiness..."
+echo "--------------------"
+./empty.exe $1 $2 $3 $4 $5
