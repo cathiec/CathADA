@@ -485,8 +485,8 @@ public:
 
     bool is_covered(const z3::expr & e, int step, const node * pn) const
     {
-        /*if(!pn->_valid)
-            return false;*/
+        if(!pn->_valid)
+            return false;
         z3::expr temp = set_step(e, step, pn->_step);
         if(always_implies(temp, pn->_e))
         {
@@ -672,20 +672,20 @@ public:
         for(int i = 0; i < a._Q.size(); i++)
         {
             from.push_back(context.bool_const(a._Q[i].c_str()));
-            to.push_back(context.bool_const((a._Q[i] + "b").c_str()));
-            result._Q.push_back(a._Q[i] + "b");
-            declare(a._Q[i] + "b", _BOOL, false);
-            result._Q_index[a._Q[i] + "b"] = result._Q.size() - 1;
+            to.push_back(context.bool_const((a._Q[i] + RENAME_SYMBOL).c_str()));
+            result._Q.push_back(a._Q[i] + RENAME_SYMBOL);
+            declare(a._Q[i] + RENAME_SYMBOL, _BOOL, false);
+            result._Q_index[a._Q[i] + RENAME_SYMBOL] = result._Q.size() - 1;
         }
         for(int i = 0; i < a._X.size(); i++)
         {
             from.push_back(context.int_const((a._X[i] + "0").c_str()));
-            to.push_back(context.int_const((a._X[i] + "b0").c_str()));
+            to.push_back(context.int_const((a._X[i] + RENAME_SYMBOL + "0").c_str()));
             from.push_back(context.int_const((a._X[i] + "1").c_str()));
-            to.push_back(context.int_const((a._X[i] + "b1").c_str()));
-            result._X.push_back(a._X[i] + "b");
-            declare((a._X[i] + "b0"), _INT, false);
-            declare((a._X[i] + "b1"), _INT, false);
+            to.push_back(context.int_const((a._X[i] + RENAME_SYMBOL + "1").c_str()));
+            result._X.push_back(a._X[i] + RENAME_SYMBOL);
+            declare((a._X[i] + RENAME_SYMBOL + "0"), _INT, false);
+            declare((a._X[i] + RENAME_SYMBOL + "1"), _INT, false);
         }
         for(int i = 0; i < a._g.size(); i++)
         {

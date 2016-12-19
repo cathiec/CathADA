@@ -3,8 +3,9 @@
 int main(int argc, char ** argv)
 {
     cath::ADA a("example3.ada", false);
-    cath::ADA b("example2.ada", false);
+    //cath::ADA b("example2.ada", false);
 
+    std::cout << a.complement() << std::endl;
     cath::ADA c = a.intersect(a.complement());
 
     try{

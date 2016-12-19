@@ -1,0 +1,18 @@
+STATES
+q0 q1
+
+INITIAL
+q0
+
+FINAL
+q1
+
+SYMBOLS
+a
+
+VARIABLES
+x
+
+TRANSITIONS
+a q0
+(and q1 false)

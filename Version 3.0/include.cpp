@@ -12,7 +12,7 @@ int main(int argc, char ** argv)
     for(int i = 3; i < argc; i++)
     {
         std::string temp = argv[i];
-        else if(temp == "-print")
+        if(temp == "-print")
             print = true;
     }
 
