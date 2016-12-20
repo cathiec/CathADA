@@ -199,6 +199,8 @@ public:
             from.push_back(parse(_Q[i]));
             to.push_back(MAIN(tg._right[i]));
         }
+        from.push_back(parse("true"));
+        to.push_back(parse("false"));
         return result.substitute(from, to);
     }
 
