@@ -16,8 +16,8 @@ int main(int argc, char ** argv)
             print = true;
     }
 
-    cath::ADA a(argv[1]);
-    cath::ADA b(argv[2]);
+    cath::ADA a(argv[1], print);
+    cath::ADA b(argv[2], print);
 
     if(a.intersect(b.complement()).is_empty(cath::ABSTRACT, print))
         std::cout << "L(1) <= L(2)." << std::endl;

@@ -8,9 +8,13 @@ FINAL
 q0
 
 SYMBOLS
-a
+a b
 
 VARIABLES
-x
+a m
 
 TRANSITIONS
+a q0
+(and q0 (< a1 m1))
+b q0
+(and q0 (< a1 m1))

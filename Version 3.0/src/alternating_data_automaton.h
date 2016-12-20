@@ -170,7 +170,7 @@ public:
     }
 
     ADA(const ADA & a)
-        :_Q(a._Q), _i(a._i), _Q_index(a._Q_index), _SIGMA(a._SIGMA), _X(a._X), _g(a._g)
+        :_Q(a._Q), _i(a._i), _F(a._F), _F_index(a._F_index), _Q_index(a._Q_index), _SIGMA(a._SIGMA), _X(a._X), _g(a._g)
     {}
 
     ~ADA()
@@ -180,6 +180,8 @@ public:
     {
         _Q = a._Q;
         _i = a._i;
+        _F = a._F;
+        _F_index = a._F_index;
         _Q_index = a._Q_index;
         _SIGMA = a._SIGMA;
         _X = a._X;
@@ -209,19 +211,7 @@ public:
             from.push_back(parse(_Q[i]));
             to.push_back(set_step(tg._right[i], 1, step + 1));
         }
-        return result.substitute(from, to);
-    }
-
-    z3::expr main_post(const z3::expr & before, const transition_group & tg) const
-    {
-        z3::expr result = before;
-        z3::expr_vector from(context), to(context);
-        for(int i = 0; i < _Q.size(); i++)
-        {
-            from.push_back(parse(_Q[i]));
-            to.push_back(MAIN(tg._right[i]));
-        }
-        return result.substitute(from, to);
+        return result.substitute(from, to).simplify();
     }
 
     bool is_always_false(const z3::expr & e) const
@@ -349,6 +339,43 @@ public:
         return true;
     }
 
+    z3::expr get_constraint(const z3::expr & e) const
+    {
+        std::vector<z3::expr> dnf_array = DNF_array(e);
+        std::vector<z3::expr> psi_array;
+        for(int i = 0; i < dnf_array.size(); i++)
+        {
+            if(dnf_array[i].decl().name().str() == "and")
+            {
+                std::vector<z3::expr> constraints_array;
+                for(int j = 0; j < dnf_array[i].num_args(); j++)
+                {
+                    if(!dnf_array[i].arg(j).is_const())
+                        constraints_array.push_back(dnf_array[i].arg(j));
+                }
+                if(constraints_array.size() == 0)
+                {
+                    return parse("true");
+                }
+                else
+                {
+                    z3::expr constraints = constraints_array[0];
+                    for(int j = 1; j < constraints_array.size(); j++)
+                        constraints = constraints && constraints_array[j];
+                    psi_array.push_back(constraints);
+                }
+            }
+            else if(dnf_array[i].is_const())
+                return parse("true");
+            else
+                psi_array.push_back(dnf_array[i]);
+        }
+        z3::expr result = psi_array[0];
+        for(int i = 1; i < psi_array.size(); i++)
+            result = result || psi_array[i];
+        return result;
+    }
+
     z3::expr get_psi(const z3::expr & before, const transition_group & tg, int step) const
     {
         std::vector<z3::expr> dnf_array = DNF_array(concrete_post(MAIN(before), tg, step));
@@ -389,9 +416,7 @@ public:
     z3::expr abstract_post(const z3::expr & before, const transition_group & tg, int step,
                            const std::vector<z3::expr> & interpolant) const
     {
-        //std::cout << "before: " << before << std::endl;
         std::vector<z3::expr> dnf_array = DNF_array(concrete_post(before, tg, step));
-        //std::cout << "after1: " << concrete_post(before, tg, step) << std::endl;
         std::vector<z3::expr> result_array;
         for(int i = 0; i < dnf_array.size(); i++)
         {
@@ -479,8 +504,7 @@ public:
         z3::expr result = result_array[0];
         for(int i = 1; i < result_array.size(); i++)
             result = result || result_array[i];
-        //std::cout << "after2: " << result << std::endl;
-        return result;
+        return result.simplify();
     }
 
     bool is_covered(const z3::expr & e, int step, const node * pn) const
@@ -509,6 +533,7 @@ public:
         std::vector<node *> NEXT;
         NEXT.push_back(&history);
         std::vector<z3::expr> INTERPOLANT;
+        INTERPOLANT.push_back(parse("false"));
         z3::solver ce_solver(context);
         while(NEXT.size() > 0)
         {
@@ -544,6 +569,8 @@ public:
                         if(print)
                             std::cout << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
                         z3::expr current_psi = get_psi(CURRENT, _g[word[i]], CURRENT_STEP);
+                        z3::expr latest_interpolant = get_constraint(CURRENT);
+                        //std::cout << "### " << latest_interpolant << std::endl;
                         CURRENT = concrete_post(CURRENT, _g[word[i]], CURRENT_STEP++);
                         psi.push_back(current_psi);
                         psi_step.push_back(CURRENT_STEP);
@@ -556,7 +583,8 @@ public:
                             bad_proved = true;
                             if(print)
                                 std::cout << "Example is bad." << std::endl;
-                            z3::expr latest_interpolant = parse("true");
+                            //std::cout << "%%% " << latest_interpolant << std::endl;
+                            //z3::expr latest_interpolant = parse("true");
                             for(int j = 0; j < psi.size() - 1; j++)
                             {
                                 z3::expr e1 = latest_interpolant && psi[j];
@@ -573,7 +601,7 @@ public:
                                         bool already = false;
                                         for(int l = 0; l < INTERPOLANT.size(); l++)
                                         {
-                                            if(always_implies(INTERPOLANT[l], pure_interpolant))
+                                            if(always_implies(INTERPOLANT[l], pure_interpolant) && always_implies(pure_interpolant, INTERPOLANT[l]))
                                             {
                                                 //std::cout << pure_interpolant << " <- " << INTERPOLANT[l] << std::endl;
                                                 already = true;
@@ -583,7 +611,7 @@ public:
                                         if(!already)
                                         {
                                             INTERPOLANT.push_back(pure_interpolant);
-                                            latest_interpolant = latest_interpolant && interpolants_array[k];
+                                            latest_interpolant = latest_interpolant || interpolants_array[k];
                                             if(print)
                                                 std::cout << "ADD INTERPOLANT: " << pure_interpolant << std::endl;
                                         }
@@ -653,12 +681,21 @@ public:
     {
         ADA result = *this;
         z3::expr_vector from(context), to(context);
+        std::vector<std::string> new_F;
         for(int i = 0; i < result._Q.size(); i++)
         {
             z3::expr temp = context.bool_const(result._Q[i].c_str());
             from.push_back(temp);
             to.push_back(!temp);
+            if(result._F_index[result._Q[i]] != 1)
+            {
+                result._F_index[result._Q[i]] = 1;
+                new_F.push_back(result._Q[i]);
+            }
+            else
+                result._F_index[result._Q[i]] = 0;
         }
+        result._F = new_F;
         for(int i = 0; i < result._g.size(); i++)
             for(int j = 0; j < result._g[i]._right.size(); j++)
                 result._g[i]._right[j] = NNF(!result._g[i]._right[j].substitute(from, to));
@@ -677,15 +714,11 @@ public:
             declare(a._Q[i] + RENAME_SYMBOL, _BOOL, false);
             result._Q_index[a._Q[i] + RENAME_SYMBOL] = result._Q.size() - 1;
         }
-        for(int i = 0; i < a._X.size(); i++)
+        result._i = "(and " + _i + " " + a._i + RENAME_SYMBOL + ")";
+        for(int i = 0; i < a._F.size(); i++)
         {
-            from.push_back(context.int_const((a._X[i] + "0").c_str()));
-            to.push_back(context.int_const((a._X[i] + RENAME_SYMBOL + "0").c_str()));
-            from.push_back(context.int_const((a._X[i] + "1").c_str()));
-            to.push_back(context.int_const((a._X[i] + RENAME_SYMBOL + "1").c_str()));
-            result._X.push_back(a._X[i] + RENAME_SYMBOL);
-            declare((a._X[i] + RENAME_SYMBOL + "0"), _INT, false);
-            declare((a._X[i] + RENAME_SYMBOL + "1"), _INT, false);
+            result._F.push_back(a._F[i] + RENAME_SYMBOL);
+            result._F_index[a._F[i] + RENAME_SYMBOL] = 1;
         }
         for(int i = 0; i < a._g.size(); i++)
         {
@@ -716,26 +749,32 @@ public:
 
 std::ostream & operator<<(std::ostream & o, const ADA & a)
 {
-    o << "STATES: ";
+    o << "STATES" << std::endl;
     for(int i = 0; i < a._Q.size(); i++)
         o << a._Q[i] << " ";
-    o << std::endl;
-    o << "SYMBOLS: ";
+    o << std::endl << std::endl;
+    o << "INITIAL" << std::endl;
+    o << a._i << std::endl << std::endl;
+    o << "FINAL" << std::endl;
+    for(int i = 0; i < a._F.size(); i++)
+        o << a._F[i] << " ";
+    o << std::endl << std::endl;
+    o << "SYMBOLS" << std::endl;
     for(int i = 0; i < a._g.size(); i++)
         o << a._g[i]._symbol << " ";
-    o << std::endl;
-    o << "VARIABLES: ";
+    o << std::endl << std::endl;
+    o << "VARIABLES" << std::endl;
     for(int i = 0; i < a._X.size(); i++)
         o << a._X[i] << " ";
-    o << std::endl;
-    o << "TRANSITIONS: " << std::endl;
+    o << std::endl << std::endl;
+    o << "TRANSITIONS" << std::endl;
     for(int i = 0; i < a._g.size(); i++)
     {
         for(int j = 0; j < a._g[i]._right.size(); j++)
         {
             if(a._g[i]._right[j].decl().name().str() != "false")
             {
-                o << a._g[i]._symbol << "(" << a._Q[j] << ") = " << a._g[i]._right[j] << std::endl;
+                o << a._g[i]._symbol << " " << a._Q[j] << std::endl << a._g[i]._right[j] << std::endl;
             }
         }
     }
