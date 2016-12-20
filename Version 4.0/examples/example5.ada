@@ -1,6 +1,9 @@
 STATES
 q0 q1 q2 q3
 
+INITIAL
+q0
+
 SYMBOLS
 a
 

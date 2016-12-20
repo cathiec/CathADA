@@ -18,6 +18,8 @@ public:
     std::vector<std::string> _Q;
     std::map<std::string, int> _Q_index;
 
+    std::string _i;
+
     std::map<std::string, int> _SIGMA;
 
     std::vector<std::string> _X;
@@ -41,6 +43,22 @@ public:
                 if(print)
                     std::cout << "% cath::declare : (declare-state " << temp << ")" << std::endl;
                 declare(temp, _BOOL, print);
+            }
+        }
+    }
+
+    void read_initial_state(std::ifstream & cur, std::string end, bool print = false)
+    {
+        std::string temp;
+        while(cur >> temp)
+        {
+            if(temp == end)
+                break;
+            else
+            {
+                _i = temp;
+                if(print)
+                    std::cout << "% cath::declare : (declare-initial-state " << temp << ")" << std::endl;
             }
         }
     }
@@ -123,14 +141,15 @@ public:
         while(cur >> temp)
             if(temp == "STATES")
                 break;
-        read_states(cur, "SYMBOLS", print);
+        read_states(cur, "INITIAL", print);
+        read_initial_state(cur, "SYMBOLS", print);
         read_symbols(cur, "VARIABLES", print);
         read_variables(cur, "TRANSITIONS", print);
         read_transitions(cur, "END", print);
     }
 
     ADA(const ADA & a)
-        :_Q(a._Q), _Q_index(a._Q_index), _SIGMA(a._SIGMA), _X(a._X), _g(a._g)
+        :_Q(a._Q), _Q_index(a._Q_index), _i(a._i), _SIGMA(a._SIGMA), _X(a._X), _g(a._g)
     {}
 
     ~ADA()
@@ -210,8 +229,9 @@ public:
             return false;
     }
 
-    bool is_empty_concrete_mode(const z3::expr & init, bool print = false) const
+    bool is_empty_concrete_mode(bool print = false) const
     {
+        z3::expr init = parse(_i);
         std::vector<std::tuple<int, z3::expr, z3::expr> > NEXT;
         NEXT.push_back(std::make_tuple(0, init, MAIN(init)));
         std::vector<std::tuple<int, z3::expr, z3::expr> > PROCESSED;
@@ -442,8 +462,9 @@ public:
         return false;
     }
 
-    bool is_empty_abstract_mode(const z3::expr & init, bool print = false) const
+    bool is_empty_abstract_mode(bool print = false) const
     {
+        z3::expr init = parse(_i);
         node history(init, MAIN(init));
         std::vector<node *> NEXT;
         NEXT.push_back(&history);
@@ -503,7 +524,6 @@ public:
                             if(print)
                                 std::cout << "Example is bad." << std::endl;
                             z3::expr latest_interpolant = parse("true");
-                            std::cout << "### psi size : " << psi.size() << std::endl;
                             for(int j = 0; j < psi.size() - 1; j++)
                             {
                                 z3::expr e1 = latest_interpolant && psi[j];
@@ -521,7 +541,8 @@ public:
                                         bool already = false;
                                         for(int l = 0; l < INTERPOLANT.size(); l++)
                                         {
-                                            if(always_implies(INTERPOLANT[l], pure_interpolant))
+                                            if(always_implies(INTERPOLANT[l], pure_interpolant)
+                                                    && always_implies(pure_interpolant, INTERPOLANT[l]))
                                             {
                                                 //std::cout << pure_interpolant << " <- " << INTERPOLANT[l] << std::endl;
                                                 already = true;
@@ -596,12 +617,12 @@ public:
         return true;
     }
 
-    bool is_empty(const z3::expr & init, check_mode m = ABSTRACT, bool print = false) const
+    bool is_empty(check_mode m = ABSTRACT, bool print = false) const
     {
         if(m == ABSTRACT)
-            return is_empty_abstract_mode(init, print);
+            return is_empty_abstract_mode(print);
         else if(m == CONCRETE)
-            return is_empty_concrete_mode(init, print);
+            return is_empty_concrete_mode(print);
     }
 
     ADA complement() const
@@ -623,6 +644,7 @@ public:
     ADA intersect(const ADA & a) const
     {
         ADA result = *this;
+        result._i = "(and " + _i + " " + a._i + RENAME_SYMBOL + ")";
         z3::expr_vector from(context), to(context);
         for(int i = 0; i < a._Q.size(); i++)
         {
@@ -664,6 +686,9 @@ std::ostream & operator<<(std::ostream & o, const ADA & a)
     o << "STATES: ";
     for(int i = 0; i < a._Q.size(); i++)
         o << a._Q[i] << " ";
+    o << std::endl;
+    o << "INITIAL STATE: ";
+    o << a._i;
     o << std::endl;
     o << "SYMBOLS: ";
     for(int i = 0; i < a._g.size(); i++)

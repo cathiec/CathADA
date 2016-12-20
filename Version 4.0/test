@@ -1,8 +1,8 @@
 #!/bin/bash
 echo "# Deleting old file..."
-rm ./test.exe
+rm ./compiled/test.exe
 echo "# Building new file..."
-g++ test.cpp -o test.exe -std=c++11 -lz3
+g++ test.cpp -o compiled/test.exe -std=c++11 -lz3
 echo "# Running test..."
 echo "--------------------"
-./test.exe
+./compiled/test.exe
