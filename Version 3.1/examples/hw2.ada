@@ -1,18 +1,20 @@
 STATES
-q0 qf
+q0
 
 INITIAL
 q0
 
 FINAL
-qf
+q0
 
 SYMBOLS
-a
+a r
 
 VARIABLES
-x
+a m
 
 TRANSITIONS
 a q0
-(and qf (= x1 (+ x0 1)))
+(and q0 (< a1 m1))
+r q0
+(and q0 (< a1 m1))
