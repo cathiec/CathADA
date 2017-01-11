@@ -31,8 +31,8 @@ public:
     {
         for(int i = 0; i < symbols.size(); i++)
         {
-            _w1.push_back(g[i]._symbol);
-            std::cout << "# " << g[i]._symbol << std::endl;
+            int index_g = symbols[symbols.size() - i - 1];
+            _w1.push_back(g[index_g]._symbol);
             std::vector<std::string> temp1;
             std::vector<z3::expr> temp2;
             for(int j = 0; j < X.size(); j++)
@@ -44,13 +44,11 @@ public:
                     {
                         temp1.push_back(X[j]);
                         temp2.push_back(m.get_const_interp(m.get_const_decl(k)));
-                        std::cout << X[j] << " = " << m.get_const_interp(m.get_const_decl(k)) << std::endl;
                     }
                 }
             }
             _w2.push_back(temp1);
             _w3.push_back(temp2);
-            std::cout << "----------" << std::endl;
         }
     }
 
@@ -72,14 +70,14 @@ std::ostream & operator<<(std::ostream & o, const word & w)
 {
     for(int i = 0; i < w._w1.size(); i++)
     {
-        o << '<' << w._w1[i] << ",{";
+        o << '<' << w._w1[i] << ", {";
         for(int j = 0; j < w._w2[i].size(); j++)
         {
-            o << w._w2[i][j] << " = " << w._w3[i][j] << ',';
+            o << w._w2[i][j] << " = " << w._w3[i][j] << ", ";
         }
         if(w._w2[i].size() >= 1)
-            o << '\b';
-        o << "}> ";
+            o << "\b\b";
+        o << "}>" << std::endl;
     }
     return o;
 }

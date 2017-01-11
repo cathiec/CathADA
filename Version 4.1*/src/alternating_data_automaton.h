@@ -638,10 +638,10 @@ public:
                             if(print)
                             {
                                 std::cout << std::endl << "Example is good." << std::endl;
-                                /*z3::model final_model = ce_solver.get_model();
+                                z3::model final_model = ce_solver.get_model();
                                 word result_word(symbols, _g, _X, final_model);
-                                std::cout << std::endl << "The automaton accepts: " << result_word << std::endl << std::endl;*/
-                                std::cout << ce_solver.get_model() << std::endl;
+                                std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
+                                //std::cout << ce_solver.get_model() << std::endl;
                             }
                             return false;
                         }
