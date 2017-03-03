@@ -1,6 +1,7 @@
 #ifndef context_h
 #define context_h
 
+#include "setting.h"
 #include <z3++.h>
 
 namespace cath{
@@ -37,14 +38,6 @@ std::string itoa(int i)
     char temp[10];
     std::sprintf(temp, "%d", i);
     return std::string(temp);
-}
-
-z3::expr parse(std::string e, bool print = false)
-{
-    std::string smt2 = "(assert " + e + ")";
-    if(print)
-        std::cout << "\t-> z3::parse : " << smt2 << std::endl;
-    return context.parse_string(smt2.c_str(), _DEFAULT_SORTS, _DECLS);
 }
 
 }
