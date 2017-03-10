@@ -684,22 +684,27 @@ public:
         return true;
     }
 
-    bool is_covered_impact(const node * c, const node * pn) const
+    bool coverage_check(node * c, node * pn, std::vector<node *> & COVERAGE) const
     {
         if(!pn->_valid)
             return false;
-        if(c != pn && always_implies(c->_e, pn->_e) && always_implies(c->_interpolant, pn->_interpolant))
+        bool result = false;
+        if( c->_path > pn->_path
+            && c != pn
+            && always_implies(c->_e, pn->_e)
+            && always_implies(c->_interpolant, pn->_interpolant))
         {
-            //std::cout << "!!! " << c->_e << " -> " << pn->_e << std::endl;
-            return true;
+            COVERAGE.push_back(pn); //the one covering another
+            COVERAGE.push_back(c); //the covered one
+            std::cout << "$ Coverage found: " << pn->_path << " covers " << c->_path << std::endl;
+            result = true;
         }
-        else
+        for(int i = 0; i < pn->_nb_down; i++)
         {
-            for(int i = 0; i < pn->_nb_down; i++)
-                if(is_covered_impact(c, pn->_down[i]))
-                    return true;
+                bool temp = coverage_check(c, pn->_down[i], COVERAGE);
+                result = result || temp;
         }
-        return false;
+        return result;
     }
 
     z3::expr impact_post(const z3::expr & before, const transition_group & tg, int step) const
@@ -725,10 +730,8 @@ public:
         }
         node history(init);
         std::vector<node *> NEXT;
-        std::vector<node *> DISACTIVATED;
+        std::vector<node *> COVERAGE;
         NEXT.push_back(&history);
-        std::vector<z3::expr> INTERPOLANT;
-        INTERPOLANT.push_back(parse("false"));
         z3::solver ce_solver(context);
         while(NEXT.size() > 0)
         {
@@ -738,9 +741,10 @@ public:
                 NEXT.pop_back();
                 continue;
             }
+            //std::cout << get_order(p_CURRENT, &history) << std::endl;
             if(print)
                 std::cout << "<" << p_CURRENT->_step << "," << p_CURRENT->_e << ","
-                          << p_CURRENT->_interpolant << ">#" << p_CURRENT->_num
+                          << p_CURRENT->_interpolant << "> #" << p_CURRENT->_path
                           << std::endl;
             NEXT.pop_back();
             if(is_sat(p_CURRENT->_e, false, &ce_solver))
@@ -756,7 +760,7 @@ public:
                 for(node * back_track = p_CURRENT; back_track != &history; back_track = back_track->_up)
                     symbols.push_back(back_track->_symbol);
                 if(print)
-                    std::cout << "BACK: <" << history._step << "," << history._e << "," << history._interpolant << ">#0" << std::endl;
+                    std::cout << "BACK: <" << history._step << "," << history._e << "," << history._interpolant << "> #0" << std::endl;
                 z3::expr current = history._e;
                 int current_step = 0;
                 z3::expr whole_psi = parse("true");
@@ -790,7 +794,10 @@ public:
                         z3::expr e2 = psi[i + 1];
                         for(int j = i + 2; j < psi.size(); j++)
                             e2 = e2 && psi[j];
-                        z3::expr pure_interpolant = set_step(compute_interpolant(e1, e2), i + 1, 0);
+                        latest_interpolant = compute_interpolant(e1, e2);
+                        z3::expr pure_interpolant = set_step(latest_interpolant, i + 1, 0);
+                        //std::cout << " --- " << latest_interpolant << std::endl;
+                        //std::cout << " @@@ " << e1 << " + " << e2 << " -> " << pure_interpolant << std::endl;
                         interpolants.push_back(pure_interpolant);
                     }
                     interpolants.push_back(parse("false"));
@@ -799,23 +806,66 @@ public:
                     {
                         back_track->_interpolant = back_track->_interpolant && interpolants[i--];
                         std::cout << "Bound " << interpolants[i + 1] << " with " << back_track->_e
-                                  << " #" << back_track->_num << std::endl;
-                    }
-                    std::vector<node *>::iterator it = DISACTIVATED.begin();
-                    while(DISACTIVATED.size() != it - DISACTIVATED.begin())
-                    {
-                        if(!is_covered_impact(*it, &history))
+                                  << " #" << back_track->_path << std::endl;
+                        std::vector<node *>::iterator it = COVERAGE.begin();
+                        int COVERAGE_size = COVERAGE.size();
+                        while(it - COVERAGE.begin() < COVERAGE_size)
                         {
-                            NEXT.push_back(*it);
-                            (*it)->_valid = true;
-                            std::cout << "$ <" << (*it)->_step << ","
-                                      << (*it)->_e << ","
-                                      << (*it)->_interpolant << ">#" << (*it)->_num
-                                      << " has been reactivated." << std::endl;
-                            DISACTIVATED.erase(it);
-                            continue;
+                            //std::cout << (*it)->_path << " covers " << (*(it + 1))->_path << std::endl;
+                            //it += 2;
+                            if(back_track->_path == (*it)->_path
+                               && !always_implies((*(it + 1))->_interpolant, (*it)->_interpolant))
+                            {
+                                std::string coverer_path = (*it)->_path;
+                                std::string covered_path = (*(it + 1))->_path;
+                                node * covered = *(it + 1);
+                                COVERAGE.erase(it, it + 2);
+                                COVERAGE_size -= 2;
+                                if(print)
+                                {
+                                    std::cout << "$ Remove coverage: #"
+                                              << coverer_path
+                                              << " covers #"
+                                              << covered_path
+                                              << std::endl;
+                                }
+                                bool still_covered = false;
+                                bool father_is_covered = false;
+                                for(node * temp = covered; temp != &history; temp = temp->_up)
+                                {
+                                    if(temp->_up->_valid == false)
+                                    {
+                                        father_is_covered = true;
+                                        break;
+                                    }
+                                }
+                                if(!father_is_covered)
+                                {
+                                    for(int i = 0; i < COVERAGE.size(); i += 2)
+                                    {
+                                        if(COVERAGE[i + 1] == covered)
+                                        {
+                                            still_covered = true;
+                                            break;
+                                        }
+                                    }
+                                    if(!still_covered)
+                                    {
+                                        covered->_valid = true;
+                                        if(print)
+                                            std::cout << "$ <" << covered->_step << ","
+                                                      << covered->_e << ","
+                                                      << covered->_interpolant << "> #" << covered->_path
+                                                      << " has been reactivated." << std::endl;
+                                        NEXT.push_back(covered);
+                                    }
+                                }
+                                it = it - 2;
+                            }
+                            it += 2;
                         }
-                        it++;
+                        if(coverage_check(back_track, &history, COVERAGE))
+                            back_track->all_set_invalid();
                     }
                 }
             }
@@ -825,27 +875,21 @@ public:
                 {
                     z3::expr POST = impact_post(p_CURRENT->_e, _g[i], p_CURRENT->_step);
                     p_CURRENT->_down[p_CURRENT->_nb_down] = new node(POST);
+                    p_CURRENT->_down[p_CURRENT->_nb_down]->_path = p_CURRENT->_path + _g[i]._symbol;
                     if(print)
                         std::cout << "POST(" << _g[i]._symbol << ") = " << "<" << p_CURRENT->_step + 1
-                                      << "," << POST << "," << p_CURRENT->_interpolant << ">#"
-                                      << p_CURRENT->_down[p_CURRENT->_nb_down]->_num
+                                      << "," << POST << "," << p_CURRENT->_interpolant << "> #"
+                                      << p_CURRENT->_down[p_CURRENT->_nb_down]->_path
                                       << std::endl;
                     if(always_implies(POST, parse("false")))
                         continue;
                     p_CURRENT->_down[p_CURRENT->_nb_down]->_step = p_CURRENT->_step + 1;
                     p_CURRENT->_down[p_CURRENT->_nb_down]->_up = p_CURRENT;
                     p_CURRENT->_down[p_CURRENT->_nb_down]->_symbol = i;
-                    NEXT.push_back(p_CURRENT->_down[p_CURRENT->_nb_down]);
-                    if(is_covered_impact(p_CURRENT->_down[p_CURRENT->_nb_down], &history))
-                    {
-                        p_CURRENT->_down[p_CURRENT->_nb_down]->_valid = false;
-                        std::cout << "$ <" << p_CURRENT->_down[p_CURRENT->_nb_down]->_step << ","
-                                  << p_CURRENT->_down[p_CURRENT->_nb_down]->_e << ","
-                                  << p_CURRENT->_down[p_CURRENT->_nb_down]->_interpolant << ">#"
-                                  << p_CURRENT->_down[p_CURRENT->_nb_down]->_num
-                                  << " has been disactivated." << std::endl;
-                        DISACTIVATED.push_back(p_CURRENT->_down[p_CURRENT->_nb_down]);
-                    }
+                    if(coverage_check(p_CURRENT->_down[p_CURRENT->_nb_down], &history, COVERAGE))
+                        p_CURRENT->_down[p_CURRENT->_nb_down]->all_set_invalid(print);
+                    else
+                        NEXT.push_back(p_CURRENT->_down[p_CURRENT->_nb_down]);
                     p_CURRENT->_nb_down = p_CURRENT->_nb_down + 1;
                 }
             }

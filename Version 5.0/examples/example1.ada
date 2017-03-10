@@ -21,9 +21,9 @@ a q1
 b q1
 (and q3 (= L1 1) (= new1 new0) (= old1 new0))
 a q3
-(and q4 (= L1 L0) (= new1 new0) (= old1 old0))
+(and q4 (= L1 0) (= new1 (+ new0 1)) (= old1 old0))
 b q3
-(and q4 (= L1 0) (= new1 new0) (= old1 old0))
+(and q4 (= L1 L0) (= new1 new0) (= old1 old0))
 a q4
 (and q1 (not (= new0 old0)) (= L1 L0) (= new1 new0) (= old1 old0))
 b q4
