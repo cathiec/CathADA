@@ -1,8 +1,12 @@
-#include "src/cath++.h"
+#include "cath_ADA.h"
 
 int main(int argc, char ** argv)
 {
-    _OUT << "Hello World !" << _RL;
+    cath::ADA a("examples/example1.ada");
+    if(a.is_empty(true))
+        std::cout << "EMPTY" << std::endl;
+    else
+        std::cout << "NOT EMPTY" << std::endl;
 
     return 0;
 }

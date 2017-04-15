@@ -1,7 +1,8 @@
 #ifndef tree_node_h
 #define tree_node_h
 
-#include "context.h"
+#include <vector>
+#include <iostream>
 
 namespace cath{
 
@@ -10,9 +11,9 @@ class tree_node
 
 public:
 
-    strx _path;
+    std::string _path;
 
-    vecx<tree_node *> _down;
+    std::vector<tree_node *> _down;
 
     bool _covered;
 
@@ -47,7 +48,7 @@ public:
     {
         _covered = true;
         if(print)
-            _OUT << "$ The node [ " << _path << " ] has been set covered." << _RL;
+            std::cout << "$ The node [ " << _path << " ] has been set covered." << std::endl;
         for(int i = 0; i < _down.size(); i++)
             _down[i]->set_covered(print);
     }
