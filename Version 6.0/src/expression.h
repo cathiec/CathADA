@@ -48,6 +48,43 @@ std::vector<z3::expr> DNF_array(const z3::expr & e)
     return result;
 }
 
+z3::expr PSI(const z3::expr & e)
+{
+    std::vector<z3::expr> dnf_array = DNF_array(e);
+    std::vector<z3::expr> psi_array;
+    for(int i = 0; i < dnf_array.size(); i++)
+    {
+        if(dnf_array[i].decl().name().str() == "and")
+        {
+            std::vector<z3::expr> constraints_array;
+            for(int j = 0; j < dnf_array[i].num_args(); j++)
+            {
+                if(!dnf_array[i].arg(j).is_const())
+                    constraints_array.push_back(dnf_array[i].arg(j));
+            }
+            if(constraints_array.size() == 0)
+            {
+                return parse("true");
+            }
+            else
+            {
+                z3::expr constraints = constraints_array[0];
+                for(int j = 1; j < constraints_array.size(); j++)
+                    constraints = constraints && constraints_array[j];
+                psi_array.push_back(constraints);
+            }
+        }
+        else if(dnf_array[i].is_const())
+            return parse("true");
+        else
+            psi_array.push_back(dnf_array[i]);
+    }
+    z3::expr result = psi_array[0];
+    for(int i = 1; i < psi_array.size(); i++)
+        result = result || psi_array[i];
+    return result;
+}
+
 z3::expr MAIN(const z3::expr & e)
 {
     if(e.is_bool())
@@ -65,7 +102,7 @@ z3::expr MAIN(const z3::expr & e)
                 z3::expr result = result_array[0];
                 for(int i = 1; i < result_array.size(); i++)
                     result = result && result_array[i];
-                return result;
+                return result.simplify();
             }
         }
         else if(e.decl().name().str() == "or")
@@ -88,7 +125,7 @@ z3::expr MAIN(const z3::expr & e)
         else if(e.is_const())
             return e;
         else
-            return context.bool_val(false);
+            return context.bool_val(true);
     }
     else if(e.is_quantifier())
         return MAIN(e.body());
@@ -110,6 +147,12 @@ bool always_implies(const z3::expr & e1, const z3::expr & e2)
         return false;
 }
 
+bool equal(const z3::expr & e1, const z3::expr & e2)
+{
+    //std::cout << "check " << e1 << " and " << e2 << std::endl;
+    return always_implies(e1, e2) && always_implies(e2, e1);
+}
+
 z3::expr compute_interpolant(const z3::expr & e1, const z3::expr & e2)
 {
     //std::cout << "@@@ " << e1 << std::endl;
@@ -123,17 +166,6 @@ z3::expr compute_interpolant(const z3::expr & e1, const z3::expr & e2)
     if(result == Z3_L_FALSE)
         return z3::expr(context, Z3_ast_vector_get(context, temp, 0));
     return parse("true");
-}
-
-std::vector<z3::expr> compute_interpolants_array(const z3::expr & e1, const z3::expr & e2)
-{
-    std::vector<z3::expr> result;
-    std::vector<z3::expr> e1_array = DNF_array(e1);
-    std::vector<z3::expr> e2_array = DNF_array(e2);
-    for(int i = 0; i < e1_array.size(); i++)
-        for(int j = 0; j < e2_array.size(); j++)
-            result.push_back(compute_interpolant(e1_array[i], e2_array[j]));
-    return result;
 }
 
 }

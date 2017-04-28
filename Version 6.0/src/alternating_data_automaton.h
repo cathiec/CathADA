@@ -2,7 +2,7 @@
 #define alternating_data_automaton_h
 
 #include "tree_node.h"
-#include "transition.h"
+#include "word.h"
 #include <fstream>
 #include <map>
 #include <tuple>
@@ -255,8 +255,285 @@ public:
         return result;
     }
 
-    bool is_empty() const
+    bool is_sat(const z3::expr & e, z3::solver * p_solver = NULL) const
     {
+        z3::expr temp = e;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < _Q.size(); i++)
+        {
+            int exist = _F_index.find(_Q[i])->second;
+            if(exist != 1)
+            {
+               from.push_back(parse(_Q[i]));
+               to.push_back(parse("false"));
+            }
+            else
+            {
+                from.push_back(parse(_Q[i]));
+                to.push_back(parse("true"));
+            }
+        }
+        temp = temp.substitute(from, to);
+        z3::solver s(context);
+        s.add(temp);
+        if(s.check())
+        {
+            if(p_solver != NULL)
+                *p_solver = s;
+            return true;
+        }
+        else
+            return false;
+    }
+
+    z3::expr set_step(const z3::expr & e, int step_before, int step_after) const
+    {
+        z3::expr result = e;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < _X.size(); i++)
+            for(int j = 0; j <= step_before; j++)
+            {
+                std::string temp1 = _X[i] + itoa(j), temp2 = _X[i] + itoa(j + step_after - step_before);
+                from.push_back(context.int_const(temp1.c_str()));
+                to.push_back(context.int_const(temp2.c_str()));
+            }
+        return result.substitute(from, to);
+    }
+
+    z3::expr concrete_post(const z3::expr & before, const transition_group & tg, int step) const
+    {
+        z3::expr result = before;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < _Q.size(); i++)
+        {
+            from.push_back(parse(_Q[i]));
+            to.push_back(set_step(tg._right[i], 1, step + 1));
+        }
+        return result.substitute(from, to).simplify();
+    }
+
+    std::vector<DAG_path> all_pathes(DAG_node * N, const std::vector<std::string> & path) const
+    {
+        std::vector<DAG_path> result;
+        //std::cout << "CURRENT " << path.size() << " : " << N->_e << std::endl;
+        std::string last_symbol = path[path.size() - 1];
+        std::vector<std::string> copy_path = path;
+        copy_path.pop_back();
+        for(int i = 0; i < N->_f_symbol.size(); i++)
+        {
+            if(N->_f_symbol[i] == last_symbol)
+            {
+                //std::cout << "$ " << N->_father[i]->_e << std::endl;
+                if(path.size() > 1)
+                {
+                    std::vector<DAG_path> part_result = all_pathes(N->_father[i], copy_path);
+                    for(int j = 0; j < part_result.size(); j++)
+                    {
+                        part_result[j].add(N->_f_phi[i], N);
+                        result.push_back(part_result[j]);
+                    }
+                }
+                else
+                {
+                    DAG_path temp;
+                    temp.add(N->_f_phi[i], N);
+                    result.push_back(temp);
+                }
+            }
+        }
+        return result;
+    }
+
+    std::vector<DAG_path> all_pathes(tree_node * CURRENT) const
+    {
+        std::vector<DAG_path> result;
+        for(int i = 0; i < CURRENT->_ele.size(); i++)
+        {
+            if(is_sat(CURRENT->_ele[i]->_e))
+            {
+                //std::cout << CURRENT->_ele[i]->_e << std::endl;
+                std::vector<DAG_path> part_result = all_pathes(CURRENT->_ele[i], CURRENT->_path);
+                for(int j = 0; j < part_result.size(); j++)
+                {
+                    //part_result[j].print();
+                    result.push_back(part_result[j]);
+                }
+            }
+        }
+        return result;
+    }
+
+    bool recompute(tree_node * CURRENT, z3::solver * p_solver = NULL, bool print = false) const
+    {
+        if(CURRENT->_father == NULL)
+        {
+            std::cout << CURRENT->_ele[0]->_e << std::endl;
+            return is_sat(CURRENT->_ele[0]->_e, p_solver);
+        }
+        std::vector<DAG_path> PATHES = all_pathes(CURRENT);
+        for(int i = 0; i < PATHES.size(); i++)
+        {
+            z3::expr temp = parse("true");
+            for(int j = 0; j < PATHES[i]._phi.size(); j++)
+            {
+                temp = temp && PATHES[i]._phi[j];
+            }
+            if(is_sat(temp, p_solver))
+            {
+                return true;
+            }
+            else
+            {
+                //std::cout << temp << std::endl;
+                z3::expr latest_interpolant = parse("true");
+                for(int j = 0; j < PATHES[i]._phi.size() - 1; j++)
+                {
+                    //std::cout << latest_interpolant << std::endl;
+                    //std::cout << PATHES[i]._phi[j] << std::endl;
+                    z3::expr e1 = latest_interpolant && PATHES[i]._phi[j];
+                    z3::expr e2 = PATHES[i]._phi[j + 1];
+                    std::cout << e1 << std::endl;
+                    std::cout << e2 << std::endl;
+                    for(int k = j + 2; k < PATHES[i]._phi.size(); k++)
+                        e2 = e2 && PATHES[i]._phi[k];
+                    std::cout << e1 << std::endl;
+                    std::cout << e2 << std::endl;
+                    latest_interpolant = compute_interpolant(e1, e2);
+                    if(print)
+                    {
+                        z3::expr pure_interpolant = set_step(latest_interpolant, j + 1, 0);
+                        if(always_implies(parse("true"), PATHES[i]._node[j]->_interpolants))
+                        {
+                            PATHES[i]._node[j]->_interpolants = pure_interpolant;
+                        }
+                        else
+                            PATHES[i]._node[j]->_interpolants = PATHES[i]._node[j]->_interpolants || pure_interpolant;
+                        std::cout << "Bind " << latest_interpolant << " with " << PATHES[i]._node[j]->_e << std::endl;
+                        //std::cout << "\tPURE " << pure_interpolant << std::endl;
+                    }
+                }
+                if(always_implies(parse("true"), PATHES[i]._node[PATHES[i]._phi.size() - 1]->_interpolants))
+                {
+                    PATHES[i]._node[PATHES[i]._phi.size() - 1]->_interpolants = parse("false");
+                    std::cout << "Bind false with " << PATHES[i]._node[PATHES[i]._phi.size() - 1]->_e << std::endl;
+                }
+            }
+        }
+        return false;
+    }
+
+    bool is_empty(bool print = false) const
+    {
+        z3::expr init = parse(_i);
+        tree_node tree_root;
+        DAG_node DAG_root(init);
+        tree_root._ele.push_back(&DAG_root);
+        std::vector<tree_node *> NEXT;
+        NEXT.push_back(&tree_root);
+        z3::solver ce_solver(context);
+        std::cout << std::endl;
+        while(NEXT.size() > 0)
+        {
+            tree_node * CURRENT = NEXT[NEXT.size() - 1];
+            if(CURRENT->_covered)
+            {
+                NEXT.pop_back();
+                continue;
+            }
+            z3::expr e = CURRENT->z3();
+            if(print)
+            {
+                std::cout << "-";
+                for(int i = 0; i < CURRENT->_path.size(); i++)
+                    std::cout << CURRENT->_path[i] << "-";
+                std::cout << " , " << e << std::endl;
+            }
+            NEXT.pop_back();
+            if(is_sat(e))
+            {
+                if(print)
+                {
+                    std::cout << "Example seems good." << std::endl;
+                    std::cout << "Recompute the concrete post." << std::endl;
+                }
+                if(recompute(CURRENT, &ce_solver, print))
+                {
+                    if(print)
+                    {
+                        std::cout << "Example is surely good." << std::endl;
+                        word result_word(CURRENT->_path, _g, _X, ce_solver.get_model());
+                        std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
+                    }
+                    return false;
+                }
+            }
+            else
+            {
+                for(int i = 0; i < _g.size(); i++)
+                {
+                    //std::cout << "Symbol: " << _g[i]._symbol << std::endl;
+                    tree_node * ONE_POST = new tree_node;
+                    ONE_POST->_father = CURRENT;
+                    ONE_POST->_path = CURRENT->_path;
+                    ONE_POST->_path.push_back(_g[i]._symbol);
+                    std::vector<DAG_node *> ALREADY;
+                    for(int j = 0; j < CURRENT->_ele.size(); j++)
+                    {
+                        //std::cout << "\t# We are currently in " << CURRENT->_ele[j]->_e << std::endl;
+                        z3::expr PART_POST = concrete_post(CURRENT->_ele[j]->_e, _g[i], CURRENT->_path.size());
+                        //std::cout << "\t$ PART POST = " << PART_POST << std::endl;
+                        if(always_implies(PART_POST, parse("false")))
+                        {
+                            continue;
+                        }
+                        std::vector<z3::expr> INTO_DNF = DNF_array(PART_POST);
+                        for(int k = 0; k < INTO_DNF.size(); k++)
+                        {
+                            CURRENT->_ele[j]->_symbol.push_back(_g[i]._symbol);
+                            z3::expr psi = PSI(INTO_DNF[k]);
+                            CURRENT->_ele[j]->_phi.push_back(psi);
+                            z3::expr main = MAIN(INTO_DNF[k]);
+                            std::cout << "\t\tINTO DNF PART: " << INTO_DNF[k] << std::endl;
+                            std::cout << "\t\tINTO DNF PART MAIN: " << main << std::endl;
+                            std::cout << "\t\tINTO DNF PART PSI: " << PSI(INTO_DNF[k]) << std::endl;
+                            int already = -1;
+                            for(int m = 0; m < ALREADY.size(); m++)
+                                if(equal(ALREADY[m]->_e, main))
+                                {
+                                    already = m;
+                                    break;
+                                }
+                            if(already == -1)
+                            {
+                                DAG_node * temp = new DAG_node(main);
+                                temp->_f_symbol.push_back(_g[i]._symbol);
+                                temp->_f_phi.push_back(psi);
+                                temp->_father.push_back(CURRENT->_ele[j]);
+                                CURRENT->_ele[j]->_succ.push_back(temp);
+                                ONE_POST->_ele.push_back(temp);
+                                ALREADY.push_back(temp);
+                            }
+                            else
+                            {
+                                //std::cout << "\t\t" << ALREADY[already]->_e << " ALREADY" << std::endl;
+                                ALREADY[already]->_f_symbol.push_back(_g[i]._symbol);
+                                ALREADY[already]->_f_phi.push_back(psi);
+                                ALREADY[already]->_father.push_back(CURRENT->_ele[j]);
+                                CURRENT->_ele[j]->_succ.push_back(ALREADY[already]);
+                            }
+                        }
+                    }
+                    if(!always_implies(ONE_POST->z3(), parse("false")))
+                    {
+                        //std::cout << "POST(" << _g[i]._symbol << ") = " << ONE_POST->z3() << std::endl;
+                        CURRENT->_down.push_back(ONE_POST);
+                        NEXT.push_back(ONE_POST);
+                    }
+                }
+            }
+            if(print)
+                std::cout << std::endl;
+        }
         return true;
     }
 

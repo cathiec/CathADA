@@ -1,8 +1,7 @@
 #ifndef tree_node_h
 #define tree_node_h
 
-#include <vector>
-#include <iostream>
+#include "DAG.h"
 
 namespace cath{
 
@@ -11,7 +10,11 @@ class tree_node
 
 public:
 
-    std::string _path;
+    std::vector<std::string> _path;
+
+    tree_node * _father;
+
+    std::vector<DAG_node *> _ele;
 
     std::vector<tree_node *> _down;
 
@@ -20,15 +23,8 @@ public:
 public:
 
     tree_node()
-        :_path(""), _covered(false)
+        :_father(NULL), _covered(false)
     {}
-
-    tree_node(const tree_node & tn)
-        :_path(tn._path), _covered(tn._covered)
-    {
-        for(int i = 0; i < _down.size(); i++)
-            _down.push_back(new tree_node(*(tn._down[i])));
-    }
 
     ~tree_node()
     {
@@ -36,21 +32,28 @@ public:
             delete _down[i];
     }
 
-    tree_node & operator=(const tree_node & tn)
-    {
-        _path = tn._path;
-        _covered = tn._covered;
-        for(int i = 0; i < _down.size(); i++)
-            _down.push_back(new tree_node(*(tn._down[i])));
-    }
-
     void set_covered(bool print = false)
     {
         _covered = true;
         if(print)
-            std::cout << "$ The node [ " << _path << " ] has been set covered." << std::endl;
+        {
+            std::cout << "$ The node -";
+            for(int i = 0; i < _path.size(); i++)
+                std::cout << _path[i] << "-";
+            std::cout << " has been set covered." << std::endl;
+        }
         for(int i = 0; i < _down.size(); i++)
             _down[i]->set_covered(print);
+    }
+
+    z3::expr z3() const
+    {
+        if(_ele.size() == 0)
+            return parse("false");
+        z3::expr e = (_ele[0]->_e && _ele[0]->_interpolants).simplify();
+        for(int i = 1; i < _ele.size(); i++)
+            e = e || (_ele[i]->_e && _ele[i]->_interpolants).simplify();
+        return e;
     }
 
 };
