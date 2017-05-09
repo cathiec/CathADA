@@ -415,142 +415,122 @@ public:
                               << std::endl << std::endl;
                 }
                 std::vector<int> symbols;
-                symbols.push_back(p_CURRENT->_symbol);
-                bool bad_proved = false;
-                for(node * back_track = p_CURRENT->_up;
-                    back_track != NULL && bad_proved == false;
-                    back_track = back_track->_up)
+                for(node * back_track = p_CURRENT; back_track->_up != NULL; back_track = back_track->_up)
+                    symbols.push_back(back_track->_symbol);
+                //backtrack
+                if(print)
+                    std::cout << "Back to the root." << std::endl;
+                z3::expr CURRENT = history._e;
+                int CURRENT_STEP = 0;
+                std::vector<z3::expr> e;
+                e.push_back(time_stamp(CURRENT, 0));
+                std::vector<z3::expr> state_set = pick_states(CURRENT);
+                for(int i = symbols.size() - 1; i >= 0; i--)
                 {
-                    std::vector<int> psi_step;
-                    z3::expr CURRENT = back_track->_e;
-                    int CURRENT_STEP = back_track->_step;
                     if(print)
-                        std::cout << "BACK: <" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
-                    for(int i = symbols.size() - 1; i >= 0; i--)
+                        std::cout << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
+                    CURRENT = concrete_post(CURRENT, _g[symbols[i]], CURRENT_STEP++).simplify();
+                    if(print)
+                        std::cout << "POST(" << _g[symbols[i]]._symbol << ") = "
+                                  << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
+                    z3::expr right = concrete_post(state_set[0], _g[symbols[i]], CURRENT_STEP - 1);
+                    z3::expr temp = z3::implies(time_stamp(state_set[0], CURRENT_STEP - 1), time_stamp(right, CURRENT_STEP));
+                    for(int j = 1; j < state_set.size(); j++)
+                    {
+                        z3::expr right2 = concrete_post(state_set[j], _g[symbols[i]], CURRENT_STEP - 1);
+                        right = right || right2;
+                        temp = temp && z3::implies(time_stamp(state_set[j], CURRENT_STEP - 1), time_stamp(right2, CURRENT_STEP));
+                    }
+                    state_set = pick_states(right);
+                    e.push_back(temp);
+                    if(is_always_false(CURRENT) ||
+                            (i == 0 && !is_sat(CURRENT, false, &ce_solver)))
                     {
                         if(print)
-                            std::cout << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
-                        CURRENT = concrete_post(CURRENT, _g[symbols[i]], CURRENT_STEP++).simplify();
-                        psi_step.push_back(CURRENT_STEP);
-                        //std::cout << "--- STEP ADD " << CURRENT_STEP << std::endl;
-                        if(print)
-                            std::cout << "POST(" << _g[symbols[i]]._symbol << ") = "
-                                      << "<" << CURRENT_STEP << "," << CURRENT << ">" << std::endl;
-                        if(is_always_false(CURRENT) ||
-                                (i == 0 && !is_sat(CURRENT)))
+                            std::cout << "Example is bad." << std::endl;
+                        //compute interpolants
+                        z3::expr final_one = parse("true");
+                        int nb_non_final = 0;
+                        for(int j = 0; j < state_set.size(); j++)
                         {
-                            bad_proved = true;
-                            if(print)
-                                std::cout << "Example is bad." << std::endl;
-                            // compute interpolants
-                            std::vector<z3::expr> e;
-                            e.push_back(time_stamp(back_track->_e, 0));
-                            std::cout << "*** " << time_stamp(back_track->_e, 0) << std::endl;
-                            std::vector<z3::expr> state_set = pick_states(back_track->_e);
-                            int j = symbols.size() - 1;
-                            int k = 0;
-                            while(j >= i)
+                            std::string xxx = state_set[j].decl().name().str();
+                            if(_F_index.find(xxx)->second != 1)
                             {
-                                z3::expr right_0 = concrete_post(state_set[0], _g[symbols[j]], psi_step[k] - 1);
-                                z3::expr right = right_0;
-                                z3::expr temp = z3::implies(time_stamp(state_set[0], k), time_stamp(right, k + 1));
-                                for(int m = 1; m < state_set.size(); m++)
-                                {
-                                    z3::expr right_m = concrete_post(state_set[m], _g[symbols[j]], psi_step[k] - 1);
-                                    right = right || right_m;
-                                    temp = temp && z3::implies(time_stamp(state_set[m], k), time_stamp(right_m, k + 1));
-                                }
-                                state_set = pick_states(right);
-                                k++;
-                                e.push_back(temp);
-                                std::cout << "*** " << temp << std::endl;
-                                j--;
+                                final_one = final_one && z3::implies(time_stamp(state_set[j], CURRENT_STEP), parse("false"));
+                                nb_non_final++;
                             }
-                            z3::expr final_one = parse("true");
-                            for(int j = 0; j < state_set.size(); j++)
-                            {
-                                std::string xxx = state_set[j].decl().name().str();
-                                if(_F_index.find(xxx)->second == 1)
-                                    final_one = final_one && z3::implies(parse("true"), time_stamp(state_set[j], k));
-                                else
-                                    final_one = final_one && z3::implies(time_stamp(state_set[j], k), parse("false"));
-                            }
-                            e.push_back(final_one);
-                            std::cout << "*** " << final_one << std::endl;
-                            z3::expr latest_interpolant = parse("true");
-                            for(int j = 0; j < e.size() - 1; j++)
-                            {
-                                //std::cout << "j = " << j << " SO j < " << e.size() - 1 << std::endl;
-                                z3::expr e1 = latest_interpolant && e[j];
-                                z3::expr e2 = e[j + 1];
-                                for(int m = j + 2; m < e.size(); m++)
-                                    e2 = e2 && e[m];
-                                //std::cout << "e1 = " << e1 << std::endl;
-                                //std::cout << "e2 = " << e2 << std::endl;
-                                z3::expr interpolant = NNF(compute_interpolant(e1, e2).simplify());
-                                //std::cout << "INTERPOLANT = " << interpolant << std::endl;
-                                z3::expr pure_interpolant = parse("true");
-                                z3::expr with_stamp = parse("true");
-                                if(j < e.size() - 2)
-                                {
-                                    //std::cout << "BEFORE " << psi_step[j] << std::endl;
-                                    with_stamp = interpolant;
-                                    pure_interpolant = set_step(interpolant, psi_step[j] - 1, 0);
-                                    pure_interpolant = remove_stamp(pure_interpolant);
-                                }
-                                else
-                                {
-                                    //std::cout << "BEFORE " << psi_step[j - 1] << std::endl;
-                                    with_stamp = interpolant;
-                                    pure_interpolant = set_step(interpolant, psi_step[j - 1] - 1, 0);
-                                    pure_interpolant = remove_stamp(pure_interpolant);
-                                }
-                                //std::cout << "PURE = " << pure_interpolant << std::endl;
-                                latest_interpolant = interpolant;
-                                bool already = false;
-                                for(int m = 0; m < INTERPOLANT.size(); m++)
-                                {
-                                    if(always_implies(INTERPOLANT[m], pure_interpolant) && always_implies(pure_interpolant, INTERPOLANT[m]))
-                                    {
-                                        already = true;
-                                        break;
-                                    }
-                                }
-                                if(!already)
-                                {
-                                    INTERPOLANT.push_back(pure_interpolant);
-                                    if(print)
-                                        //std::cout << "ADD INTERPOLANT: " << pure_interpolant << std::endl;
-                                        std::cout << "ADD INTERPOLANT: " << with_stamp << std::endl;
-                                }
-                            }
-                            back_track->all_set_invalid();
-                            back_track->_valid = true;
-                            NEXT.push_back(back_track);
-                            break;
                         }
-                        else if(is_sat(CURRENT, false, &ce_solver) && back_track == &history)
+                        e.push_back(final_one);
+                        /*for(int j = 0; j < e.size(); j++)
                         {
-                            if(print)
-                            {
-                                std::cout << std::endl << "Example is good." << std::endl;
-                                z3::model final_model = ce_solver.get_model();
-                                word result_word(symbols, _g, _X, final_model);
-                                std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
-                                //std::cout << ce_solver.get_model() << std::endl;
-                            }
-                            return false;
-                        }
-                        else if(is_sat(CURRENT))
+                            std::cout << "*** " << e[j] << std::endl;
+                        }*/
+                        z3::expr latest_interpolant = parse("true");
+                        for(int j = 0; j < e.size() - 1; j++)
                         {
-                            if(print)
-                                std::cout << std::endl << "Example seems good. But not enough." << std::endl;
+                            //std::cout << "j = " << j << " SO j < " << e.size() - 1 << std::endl;
+                            z3::expr e1 = latest_interpolant && e[j];
+                            z3::expr e2 = e[j + 1];
+                            for(int m = j + 2; m < e.size(); m++)
+                                e2 = e2 && e[m];
+                            //std::cout << "e1 = " << e1 << std::endl;
+                            //std::cout << "e2 = " << e2 << std::endl;
+                            z3::expr interpolant = NNF(compute_interpolant(e1, e2).simplify());
+                            //std::cout << "INTERPOLANT = " << interpolant << std::endl;
+                            z3::expr pure_interpolant = parse("true");
+                            //z3::expr with_stamp = parse("true");
+                            if(j < e.size() - nb_non_final)
+                            {
+                                //std::cout << "BEFORE " << j << std::endl;
+                                //with_stamp = interpolant;
+                                pure_interpolant = set_step(interpolant, j, 0);
+                                pure_interpolant = remove_stamp(pure_interpolant);
+                            }
+                            else
+                            {
+                                //std::cout << "BEFORE " << e.size() - nb_non_final << std::endl;
+                                //with_stamp = interpolant;
+                                pure_interpolant = set_step(interpolant, e.size() - nb_non_final, 0);
+                                pure_interpolant = remove_stamp(pure_interpolant);
+                            }
+                            //std::cout << "PURE = " << pure_interpolant << std::endl;
+                            latest_interpolant = interpolant;
+                            bool already = false;
+                            for(int m = 0; m < INTERPOLANT.size(); m++)
+                            {
+                                if(always_implies(INTERPOLANT[m], pure_interpolant) && always_implies(pure_interpolant, INTERPOLANT[m]))
+                                {
+                                    already = true;
+                                    break;
+                                }
+                            }
+                            if(!already)
+                            {
+                                INTERPOLANT.push_back(pure_interpolant);
+                                if(print)
+                                    std::cout << "ADD INTERPOLANT: " << pure_interpolant << std::endl;
+                                    //std::cout << "ADD INTERPOLANT: " << with_stamp << std::endl;
+                            }
                         }
+                        history.all_set_invalid();
+                        history._valid = true;
+                        NEXT.push_back(&history);
+                        break;
                     }
-                    symbols.push_back(back_track->_symbol);
-                    if(print)
-                        std::cout << std::endl;
+                    else if(i == 0)
+                    {
+                        if(print)
+                        {
+                            std::cout << std::endl << "Example is good." << std::endl;
+                            z3::model final_model = ce_solver.get_model();
+                            word result_word(symbols, _g, _X, final_model);
+                            std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
+                        }
+                        return false;
+                    }
                 }
+                if(print)
+                    std::cout << std::endl;
             }
             else
             {

@@ -417,10 +417,12 @@ public:
                 std::vector<int> symbols;
                 symbols.push_back(p_CURRENT->_symbol);
                 bool bad_proved = false;
+                int back_step = 0;
                 for(node * back_track = p_CURRENT->_up;
                     back_track != NULL && bad_proved == false;
                     back_track = back_track->_up)
                 {
+                    back_step++;
                     std::vector<int> psi_step;
                     z3::expr CURRENT = back_track->_e;
                     int CURRENT_STEP = back_track->_step;
@@ -445,7 +447,7 @@ public:
                             // compute interpolants
                             std::vector<z3::expr> e;
                             e.push_back(time_stamp(back_track->_e, 0));
-                            std::cout << "*** " << time_stamp(back_track->_e, 0) << std::endl;
+                            //std::cout << "*** " << time_stamp(back_track->_e, 0) << std::endl;
                             std::vector<z3::expr> state_set = pick_states(back_track->_e);
                             int j = symbols.size() - 1;
                             int k = 0;
@@ -463,7 +465,7 @@ public:
                                 state_set = pick_states(right);
                                 k++;
                                 e.push_back(temp);
-                                std::cout << "*** " << temp << std::endl;
+                                //std::cout << "*** " << temp << std::endl;
                                 j--;
                             }
                             z3::expr final_one = parse("true");
@@ -476,7 +478,7 @@ public:
                                     final_one = final_one && z3::implies(time_stamp(state_set[j], k), parse("false"));
                             }
                             e.push_back(final_one);
-                            std::cout << "*** " << final_one << std::endl;
+                            //std::cout << "*** " << final_one << std::endl;
                             z3::expr latest_interpolant = parse("true");
                             for(int j = 0; j < e.size() - 1; j++)
                             {
@@ -524,10 +526,17 @@ public:
                                         std::cout << "ADD INTERPOLANT: " << with_stamp << std::endl;
                                 }
                             }
-                            back_track->all_set_invalid();
-                            back_track->_valid = true;
-                            NEXT.push_back(back_track);
-                            break;
+                            if(back_step >= BACK_STEP || back_track == &history)
+                            {
+                                //std::cout << back_step << std::endl;
+                                //std::cout << BACK_STEP << std::endl;
+                                back_track->all_set_invalid();
+                                back_track->_valid = true;
+                                NEXT.push_back(back_track);
+                                break;
+                            }
+                            else
+                                bad_proved = false;
                         }
                         else if(is_sat(CURRENT, false, &ce_solver) && back_track == &history)
                         {
