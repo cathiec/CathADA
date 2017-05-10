@@ -1,0 +1,8 @@
+#!/bin/bash
+echo "# Deleting old file..."
+rm ./compiled/include.exe
+echo "# Building new file..."
+g++ include.cpp -o compiled/include.exe -std=c++11 -lz3
+echo "# Checking emptiness..."
+echo "--------------------"
+./compiled/include.exe $1 $2 $3 $4 $5
