@@ -10,8 +10,6 @@
 
 namespace cath{
 
-typedef enum{CONCRETE, ABSTRACT} check_mode;
-
 class ADA
 {
 
@@ -270,10 +268,37 @@ public:
                 to.push_back(context.int_const(temp2.c_str()));
             }
         std::vector<z3::expr> states = pick_states(e);
-        for(int j = 0; j < states.size(); j++)
+        for(int i = 0; i < states.size(); i++)
         {
-            std::string temp = states[j].decl().name().str() + "_" + itoa(step);
-            from.push_back(states[j]);
+            std::string temp = states[i].decl().name().str() + "_" + itoa(step);
+            from.push_back(states[i]);
+            to.push_back(context.bool_const(temp.c_str()));
+        }
+        return result.substitute(from, to);
+    }
+
+    z3::expr remove_time_stamp(const z3::expr & e, int step) const
+    {
+        z3::expr result = e;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < _X.size(); i++)
+        {
+            std::string temp1 = _X[i] + itoa(step), temp2 = _X[i];
+            from.push_back(context.int_const(temp1.c_str()));
+            to.push_back(context.int_const(temp2.c_str()));
+        }
+        std::vector<z3::expr> states = pick_states(e);
+        for(int i = 0; i < states.size(); i++)
+        {
+            std::string temp = states[i].decl().name().str();
+            int j;
+            for(j = temp.length() - 1; j >= 0; j--)
+            {
+                if(temp[j] == '_')
+                    break;
+            }
+            temp = temp.substr(0, j);
+            from.push_back(states[i]);
             to.push_back(context.bool_const(temp.c_str()));
         }
         return result.substitute(from, to);
@@ -321,15 +346,21 @@ public:
             return false;
     }
 
-    bool close(node * p_x, const std::vector<node *> & N) const
+    bool close(node * p_x, const std::vector<node *> & N, bool print = false) const
     {
-        for(int i = p_x->_num + 1; i < N.size(); i++)
+        for(int i = p_x->_num - 1; i >= 0; i--)
+        //for(int i = p_x->_num + 1; i < N.size(); i++)
         {
             node * p_y = N[i];
             if(p_x->is_ancestor_of(p_y))
                 continue;
+            //std::cout << "? " << p_x->_lambda << " -> " << p_y->_lambda << std::endl;
             if(always_implies(p_x->_lambda, p_y->_lambda))
             {
+                if(print)
+                {
+                    std::cout << "#" << p_x->_num << " is covered by #" << p_y->_num << std::endl;
+                }
                 p_x->remove_all_covered();
                 p_x->_covering.push_back(p_y);
                 p_y->_covered.push_back(p_x);
@@ -339,7 +370,7 @@ public:
         return false;
     }
 
-    bool is_empty(bool print = false, int mode = 1) const
+    bool is_empty(bool print = false, int mode = 2) const
     {
         z3::expr init = parse(_i);
         if(is_sat(init))
@@ -355,10 +386,10 @@ public:
         p_root->_num = 0;
         p_root->_step = 0;
         p_root->_R = pick_states(init);
-        p_root->_lambda = add_time_stamp(init, 0);
+        p_root->_lambda = init;
         p_root->_theta = add_time_stamp(init, 0);
         std::vector<node *> N;
-        N.push_back(p_root);
+        //N.push_back(p_root);
         std::vector<node *> WorkList;
         WorkList.push_back(p_root);
         while(WorkList.size() > 0)
@@ -376,69 +407,99 @@ public:
             }
             if(print)
             {
-                std::cout << "[" << p_n->_step << "] " << p_n->_lambda << std::endl;
+                std::cout << "#" << p_n->_num << " [" << p_n->_step << "] "
+                          << p_n->_lambda
+                          << " : R = {";
+                for(int j = 0; j < p_n->_R.size(); j++)
+                    std::cout << p_n->_R[j] << ",";
+                std::cout << "\b} : T = " << p_n->_theta << std::endl;
             }
-            close(p_n, N);
-            if(p_n->is_covered())
-                continue;
-            else
+            N.push_back(p_n);
+            std::vector<z3::expr> e;
+            std::vector<int> symbols;
+            z3::expr final = parse("true");
+            bool final_set = false;
+            for(int i = 0; i < p_n->_R.size(); i++)
             {
-                bool can_be_sat = false;
-                for(int i = 0; i < p_n->_R.size(); i++)
+                if(_F_index.find(p_n->_R[i].decl().name().str())->second != 1)
                 {
-                    if(_F_index.find(p_n->_R[i].decl().name().str())->second == 1)
+                    if(!final_set)
                     {
-                        can_be_sat = true;
-                        break;
+                        final = z3::implies(add_time_stamp(p_n->_R[i], p_n->_step), parse("false"));
+                        final_set = true;
                     }
+                    else
+                        final = final && z3::implies(add_time_stamp(p_n->_R[i], p_n->_step), parse("false"));
                 }
-                if(can_be_sat)
+            }
+            e.push_back(final);
+            std::vector<node *> temp_n;
+            for(node * p = p_n; p != NULL; p = p->_father)
+            {
+                if(p->_father != NULL)
+                    symbols.push_back(p->_symbol);
+                e.push_back(p->_theta);
+                temp_n.push_back(p);
+                //std::cout << "$$$ " << p->_theta << std::endl;
+            }
+            std::vector<node *> n;
+            for(int i = temp_n.size() - 1; i >= 0; i--)
+                n.push_back(temp_n[i]);
+            z3::expr value = e[0];
+            for(int i = 1; i < e.size(); i++)
+                value = value && e[i];
+            z3::solver s(context);
+            s.add(value);
+            if(s.check())
+            {
+                std::cout << "SAT" << std::endl;
+                z3::model final_model = s.get_model();
+                word result_word(symbols, _g, _X, final_model);
+                std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
+                for(int i = 0; i < N.size(); i++)
+                    delete N[i];
+                return false;
+            }
+            // compute interpolants
+            std::vector<z3::expr> I;
+            z3::expr latest_interpolant = parse("true");
+            int step_interpolant = 0;
+            for(int i = e.size() - 1; i > 0; i--)
+            {
+                z3::expr e1 = latest_interpolant && e[i];
+                z3::expr e2 = e[i - 1];
+                for(int j = i - 2; j >= 0; j--)
+                    e2 = e2 && e[j];
+                z3::expr interpolant = compute_interpolant(e1, e2);
+                //std::cout << "e1 = " << e1 << std::endl;
+                //std::cout << "e2 = " << e2 << std::endl;
+                latest_interpolant = interpolant;
+                interpolant = remove_time_stamp(interpolant, step_interpolant++);
+                I.push_back(interpolant);
+            }
+            /*for(int i = 0; i < I.size(); i++)
+                std::cout << "I[" << i << "] = " << I[i] << std::endl;
+
+            for(int i = 0 ; i < n.size(); i++)
+                std::cout << "^^^     n[" << i << "] = " << n[i]->_num << std::endl;*/
+            bool b = false;
+            for(int i = 1 ; i < n.size(); i++)
+            {
+                if(!always_implies(n[i]->_lambda, I[i]))
                 {
-                    std::vector<z3::expr> e;
-                    std::vector<int> symbols;
-                    for(const node * p = p_n; p != NULL; p = p->_father)
-                    {
-                        if(p->_father != NULL)
-                            symbols.push_back(p->_symbol);
-                        e.push_back(p->_theta);
-                        //std::cout << "$$$ " << p->_theta << std::endl;
-                    }
-                    z3::expr final = parse("true");
-                    bool final_set = false;
-                    for(int i = 0; i < p_n->_R.size(); i++)
-                    {
-                        if(_F_index.find(p_n->_R[i].decl().name().str())->second != 1)
-                        {
-                            if(!final_set)
-                            {
-                                final = z3::implies(add_time_stamp(p_n->_R[i], p_n->_step), parse("false"));
-                                final_set = true;
-                            }
-                            else
-                                final = final && z3::implies(add_time_stamp(p_n->_R[i], p_n->_step), parse("false"));
-                        }
-                    }
-                    e.push_back(final);
-                    z3::expr value = e[0];
-                    for(int i = 1; i < e.size(); i++)
-                        value = value && e[i];
-                    z3::solver s(context);
-                    s.add(value);
-                    if(s.check())
-                    {
-                        if(print)
-                        {
-                            std::cout << "SAT" << std::endl;
-                            z3::model final_model = s.get_model();
-                            word result_word(symbols, _g, _X, final_model);
-                            std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
-                        }
-                        return true;
-                    }
-                    // compute interpolants
-                    std::cout << "###" << std::endl;
+                    n[i]->remove_all_covered();
+                    //std::cout << "$ " << n[i]->_lambda << std::endl;
+                    //std::cout << "- " << I[index_interpolant] << std::endl;
+                    if(print)
+                        std::cout << "----- Bind " << I[i] << " with #" << n[i]->_num << std::endl;
+                    n[i]->_lambda = n[i]->_lambda && I[i];
+                    if(!b)
+                        b = close(n[i], N, print);
                 }
-                // expand n
+            }
+            // expand n
+            if(!p_n->is_covered())
+            {
                 for(int i = 0; i < _g.size(); i++)
                 {
                     //std::cout << _g[i]._symbol << std::endl;
@@ -473,11 +534,14 @@ public:
                     p_n->_down_theta.push_back(new_theta);
                     if(print)
                     {
-                        std::cout << _g[i]._symbol << " -> " << p_s->_lambda << "\nR = {";
+                        std::cout << _g[i]._symbol << " -> #" << p_s->_num
+                                  << " [" << p_s->_step << "] "
+                                  << p_s->_lambda << " : R = {";
                         for(int j = 0; j < p_s->_R.size(); j++)
                             std::cout << p_s->_R[j] << ",";
-                        std::cout << "\b}\nT = " << p_s->_theta << std::endl;
+                        std::cout << "\b} : T = " << p_s->_theta << std::endl;
                     }
+                    //N.push_back(p_s);
                     WorkList.push_back(p_s);
                 }
             }

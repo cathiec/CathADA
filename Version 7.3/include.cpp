@@ -24,7 +24,7 @@ int main(int argc, char ** argv)
 
     start = cath::now();
 
-    if(a.intersect(b.complement()).is_empty(cath::ABSTRACT, print))
+    if(a.intersect(b.complement()).is_empty(print))
         std::cout << "L(1) <= L(2)." << std::endl;
     else
         std::cout << "Not included." << std::endl;

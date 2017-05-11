@@ -3,7 +3,7 @@
 
 int main(int argc, char ** argv)
 {
-    cath::ADA a("examples/example1.ada", true);
+    cath::ADA a("examples/example4.ada", true);
 
     cath::time_point start, end;
 
