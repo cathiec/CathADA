@@ -11,7 +11,7 @@ SYMBOLS
 a b c
 
 VARIABLES
-x y
+x
 
 TRANSITIONS
 a q0

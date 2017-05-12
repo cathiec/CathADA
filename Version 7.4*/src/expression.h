@@ -110,6 +110,7 @@ z3::expr compute_interpolant(const z3::expr & e1, const z3::expr & e2)
     z3::expr pattern = z3::expr(context, Z3_mk_interpolant(context, e1));
     Z3_model md;
     pattern = (pattern && e2);
+    //pattern = pattern && z3::expr(context, Z3_mk_interpolant(context, e1));
     Z3_ast_vector temp;
     Z3_lbool result = Z3_compute_interpolant(context, pattern, 0, &temp, &md);
     //std::cout << "### " << z3::expr(context, Z3_ast_vector_get(context, temp, 0)) << std::endl;
