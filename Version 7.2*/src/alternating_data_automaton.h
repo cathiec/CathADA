@@ -348,7 +348,7 @@ public:
             //std::cout << "--- " << set_step(interpolant[i], 0, step + 1) << std::endl;
             if(always_implies(cp, set_step(interpolant[i], 0, step + 1)))
             {
-                //std::cout << "   YES" << std::endl;
+                //std::cout << "+++ I = " << set_step(interpolant[i], 0, step + 1) << std::endl;
                 result = result && set_step(interpolant[i], 0, step + 1);
             }
             //else
@@ -375,6 +375,32 @@ public:
                     return true;
         }
         return false;
+    }
+
+    z3::expr time_stamp(const z3::expr & e, int step) const
+    {
+        z3::expr result = e;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < _Q.size(); i++)
+        {
+            std::string temp1 = _Q[i], temp2 = _Q[i] + "_" + itoa(step);
+            from.push_back(context.bool_const(temp1.c_str()));
+            to.push_back(context.bool_const(temp2.c_str()));
+        }
+        return result.substitute(from, to);
+    }
+
+    z3::expr remove_stamp(const z3::expr & e, int step) const
+    {
+        z3::expr result = e;
+        z3::expr_vector from(context), to(context);
+        for(int i = 0; i < _Q.size(); i++)
+        {
+            std::string temp1 = _Q[i] + "_" + itoa(step), temp2 = _Q[i];
+            from.push_back(context.bool_const(temp1.c_str()));
+            to.push_back(context.bool_const(temp2.c_str()));
+        }
+        return result.substitute(from, to);
     }
 
     bool is_empty_abstract_mode(bool print = false) const
@@ -480,6 +506,7 @@ public:
                             e.push_back(final_one);
                             //std::cout << "*** " << final_one << std::endl;
                             z3::expr latest_interpolant = parse("true");
+                            k = 0;
                             for(int j = 0; j < e.size() - 1; j++)
                             {
                                 //std::cout << "j = " << j << " SO j < " << e.size() - 1 << std::endl;
@@ -495,17 +522,19 @@ public:
                                 z3::expr with_stamp = parse("true");
                                 if(j < e.size() - 2)
                                 {
-                                    //std::cout << "BEFORE " << psi_step[j] << std::endl;
                                     with_stamp = interpolant;
+                                    //std::cout << "*BEFORE [" << k << "] : " << with_stamp << std::endl;
                                     pure_interpolant = set_step(interpolant, psi_step[j] - 1, 0);
-                                    pure_interpolant = remove_stamp(pure_interpolant);
+                                    pure_interpolant = remove_stamp(pure_interpolant, k);
+                                    k++;
                                 }
                                 else
                                 {
-                                    //std::cout << "BEFORE " << psi_step[j - 1] << std::endl;
                                     with_stamp = interpolant;
+                                    //std::cout << "BEFORE [" << k << "] : " << with_stamp << std::endl;
                                     pure_interpolant = set_step(interpolant, psi_step[j - 1] - 1, 0);
-                                    pure_interpolant = remove_stamp(pure_interpolant);
+                                    pure_interpolant = remove_stamp(pure_interpolant, k);
+                                    k++;
                                 }
                                 //std::cout << "PURE = " << pure_interpolant << std::endl;
                                 latest_interpolant = interpolant;
@@ -522,8 +551,8 @@ public:
                                 {
                                     INTERPOLANT.push_back(pure_interpolant);
                                     if(print)
-                                        //std::cout << "ADD INTERPOLANT: " << pure_interpolant << std::endl;
-                                        std::cout << "ADD INTERPOLANT: " << with_stamp << std::endl;
+                                        std::cout << "ADD INTERPOLANT: " << pure_interpolant << std::endl;
+                                        //std::cout << "ADD INTERPOLANT: " << with_stamp << std::endl;
                                 }
                             }
                             if(back_step >= BACK_STEP || back_track == &history)

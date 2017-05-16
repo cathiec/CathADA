@@ -271,12 +271,11 @@ public:
             from.push_back(context.int_const(_X[i].c_str()));
             to.push_back(context.int_const((_X[i] + itoa(step)).c_str()));
         }
-        std::vector<z3::expr> states = pick_states(e);
-        for(int i = 0; i < states.size(); i++)
+        for(int i = 0; i < _Q.size(); i++)
         {
-            std::string temp = states[i].decl().name().str() + "_" + itoa(step);
-            from.push_back(states[i]);
-            to.push_back(context.bool_const(temp.c_str()));
+            std::string temp1 = _Q[i], temp2 = _Q[i] + "_" + itoa(step);
+            from.push_back(context.bool_const(temp1.c_str()));
+            to.push_back(context.bool_const(temp2.c_str()));
         }
         return result.substitute(from, to);
     }
@@ -291,19 +290,11 @@ public:
             from.push_back(context.int_const(temp1.c_str()));
             to.push_back(context.int_const(temp2.c_str()));
         }
-        std::vector<z3::expr> states = pick_states(e);
-        for(int i = 0; i < states.size(); i++)
+        for(int i = 0; i < _Q.size(); i++)
         {
-            std::string temp = states[i].decl().name().str();
-            int j;
-            for(j = temp.length() - 1; j >= 0; j--)
-            {
-                if(temp[j] == '_')
-                    break;
-            }
-            temp = temp.substr(0, j);
-            from.push_back(states[i]);
-            to.push_back(context.bool_const(temp.c_str()));
+            std::string temp1 = _Q[i] + "_" + itoa(step), temp2 = _Q[i];
+            from.push_back(context.bool_const(temp1.c_str()));
+            to.push_back(context.bool_const(temp2.c_str()));
         }
         return result.substitute(from, to);
     }
@@ -374,7 +365,7 @@ public:
         return false;
     }
 
-    bool is_empty(bool print = false, int mode = 2) const
+    bool is_empty(bool print = false, int mode = CONTAINER_MODE) const
     {
         if(print)
             std::cout << std::endl;
@@ -402,7 +393,16 @@ public:
             }
             p_n->_num = N.size();
             N.push_back(p_n);
-            // backtrack
+            if(print)
+            {
+                std::cout << "#" << p_n->_num << " [" << p_n->_step << "] "
+                          << p_n->_lambda
+                          << " : R = {";
+                for(int j = 0; j < p_n->_R.size(); j++)
+                    std::cout << p_n->_R[j] << ",";
+                std::cout << "\b} : T = " << p_n->_theta << std::endl;
+            }
+            // final implication
             z3::expr final = parse("true");
             bool final_set = false;
             for(int i = 0; i < p_n->_R.size(); i++)
@@ -419,6 +419,7 @@ public:
                 }
             }
             int back_step = 0;
+            // backtrack
             for(node * back = p_n; back != NULL; back = back->_father)
             {
                 if(back_step < BACK_STEP && back != p_root)
@@ -426,7 +427,7 @@ public:
                     back_step++;
                     continue;
                 }
-                if(print)
+                /*if(print)
                 {
                     if(back != p_n)
                         std::cout << "BACK : ";
@@ -436,7 +437,7 @@ public:
                     for(int j = 0; j < back->_R.size(); j++)
                         std::cout << back->_R[j] << ",";
                     std::cout << "\b} : T = " << back->_theta << std::endl;
-                }
+                }*/
                 std::vector<z3::expr> e;
                 std::vector<int> symbols;
                 e.push_back(final);
@@ -469,8 +470,8 @@ public:
                 {
                     if(back != p_root)
                     {
-                        if(print)
-                            std::cout << "Good but not enough." << std::endl;
+                        /*if(print)
+                            std::cout << "Good but not enough." << std::endl;*/
                         continue;
                     }
                     z3::model final_model = s.get_model();
@@ -501,7 +502,9 @@ public:
                     //std::cout << "e2 = " << e2 << std::endl;
                     latest_interpolant = interpolant;
                     //std::cout << "@@@ BEFORE = " << interpolant << std::endl;
+                    //std::cout << 111 << std::endl;
                     interpolant = remove_time_stamp(interpolant, step_interpolant++);
+                    //std::cout << 222 << std::endl;
                     //std::cout << "@@@ AFTER = " << interpolant << std::endl;
                     I.push_back(interpolant);
                 }
@@ -510,6 +513,7 @@ public:
                 for(int i = 0 ; i < n.size(); i++)
                     std::cout << "^^^     n[" << i << "] = #" << n[i]->_num << std::endl;*/
                 bool b = false;
+                //std::cout << 111 << std::endl;
                 for(int i = 0 ; i < n.size(); i++)
                 {
                     if(!always_implies(n[i]->_lambda, I[i]))
@@ -524,6 +528,7 @@ public:
                             b = close(n[i], N, print);
                     }
                 }
+                //std::cout << 222 << std::endl;
                 break;
             }
             // expand n
@@ -563,7 +568,7 @@ public:
                     p_n->_down_theta.push_back(new_theta);
                     if(print)
                     {
-                        std::cout << '\t' << _g[i]._symbol << " -> #" << p_s->_num
+                        std::cout << '\t' << _g[i]._symbol << " -> "
                                   << " [" << p_s->_step << "] "
                                   << p_s->_lambda << " : R = {";
                         for(int j = 0; j < p_s->_R.size(); j++)

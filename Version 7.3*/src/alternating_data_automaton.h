@@ -271,12 +271,11 @@ public:
             from.push_back(context.int_const(_X[i].c_str()));
             to.push_back(context.int_const((_X[i] + itoa(step)).c_str()));
         }
-        std::vector<z3::expr> states = pick_states(e);
-        for(int i = 0; i < states.size(); i++)
+        for(int i = 0; i < _Q.size(); i++)
         {
-            std::string temp = states[i].decl().name().str() + "_" + itoa(step);
-            from.push_back(states[i]);
-            to.push_back(context.bool_const(temp.c_str()));
+            std::string temp1 = _Q[i], temp2 = _Q[i] + "_" + itoa(step);
+            from.push_back(context.bool_const(temp1.c_str()));
+            to.push_back(context.bool_const(temp2.c_str()));
         }
         return result.substitute(from, to);
     }
@@ -291,19 +290,11 @@ public:
             from.push_back(context.int_const(temp1.c_str()));
             to.push_back(context.int_const(temp2.c_str()));
         }
-        std::vector<z3::expr> states = pick_states(e);
-        for(int i = 0; i < states.size(); i++)
+        for(int i = 0; i < _Q.size(); i++)
         {
-            std::string temp = states[i].decl().name().str();
-            int j;
-            for(j = temp.length() - 1; j >= 0; j--)
-            {
-                if(temp[j] == '_')
-                    break;
-            }
-            temp = temp.substr(0, j);
-            from.push_back(states[i]);
-            to.push_back(context.bool_const(temp.c_str()));
+            std::string temp1 = _Q[i] + "_" + itoa(step), temp2 = _Q[i];
+            from.push_back(context.bool_const(temp1.c_str()));
+            to.push_back(context.bool_const(temp2.c_str()));
         }
         return result.substitute(from, to);
     }
@@ -374,26 +365,17 @@ public:
         return false;
     }
 
-    bool is_empty(bool print = false, int mode = 1) const
+    bool is_empty(bool print = false, int mode = CONTAINER_MODE) const
     {
+        if(print)
+            std::cout << std::endl;
         z3::expr init = parse(_i);
-        if(is_sat(init))
-        {
-            if(print)
-            {
-                std::cout << "Example is good." << std::endl;
-                std::cout << "The automaton accepts: EMPTY WORD." << std::endl;
-            }
-            return false;
-        }
         node * p_root = new node;
         p_root->_num = 0;
         p_root->_step = 0;
         p_root->_R = pick_states(init);
         p_root->_lambda = init;
-        p_root->_theta = add_time_stamp(init, 0);
         std::vector<node *> N;
-        //N.push_back(p_root);
         std::vector<node *> WorkList;
         WorkList.push_back(p_root);
         while(WorkList.size() > 0)
@@ -409,6 +391,8 @@ public:
                 p_n = WorkList[WorkList.size() - 1];
                 WorkList.pop_back();
             }
+            p_n->_num = N.size();
+            N.push_back(p_n);
             if(print)
             {
                 std::cout << "#" << p_n->_num << " [" << p_n->_step << "] "
@@ -418,7 +402,7 @@ public:
                     std::cout << p_n->_R[j] << ",";
                 std::cout << "\b} : T = " << p_n->_theta << std::endl;
             }
-            N.push_back(p_n);
+            // final implication
             std::vector<z3::expr> e;
             std::vector<int> symbols;
             z3::expr final = parse("true");
@@ -438,11 +422,15 @@ public:
             }
             e.push_back(final);
             std::vector<node *> temp_n;
+            // backtrack
             for(node * p = p_n; p != NULL; p = p->_father)
             {
                 if(p->_father != NULL)
                     symbols.push_back(p->_symbol);
-                e.push_back(p->_theta);
+                if(p == p_root)
+                    e.push_back(add_time_stamp(p->_lambda, p->_step));
+                else
+                    e.push_back(p->_theta);
                 temp_n.push_back(p);
                 //std::cout << "$$$ " << p->_theta << std::endl;
             }
@@ -456,10 +444,12 @@ public:
             s.add(value);
             if(s.check())
             {
-                std::cout << "SAT" << std::endl;
                 z3::model final_model = s.get_model();
                 word result_word(symbols, _g, _X, final_model);
-                std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
+                if(result_word._w1.size() == 0)
+                    std::cout << std::endl << "The automaton accepts empty word." << std::endl << std::endl;
+                else
+                    std::cout << std::endl << "The automaton accepts:" << std::endl << result_word << std::endl;
                 for(int i = 0; i < N.size(); i++)
                     delete N[i];
                 return false;
@@ -545,7 +535,6 @@ public:
                             std::cout << p_s->_R[j] << ",";
                         std::cout << "\b} : T = " << p_s->_theta << std::endl;
                     }
-                    //N.push_back(p_s);
                     WorkList.push_back(p_s);
                 }
             }

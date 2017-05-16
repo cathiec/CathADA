@@ -166,45 +166,6 @@ z3::expr compute_interpolant(const z3::expr & e1, const z3::expr & e2)
     return parse("true");
 }
 
-z3::expr time_stamp(const z3::expr & e, int step)
-{
-    std::vector<z3::expr> states = pick_states(e);
-    z3::expr_vector from(context), to(context);
-    for(int j = 0; j < states.size(); j++)
-    {
-        std::string temp = states[j].decl().name().str() + "_" + itoa(step);
-        from.push_back(states[j]);
-        to.push_back(context.bool_const(temp.c_str()));
-    }
-    z3::expr temp = e;
-    return temp.substitute(from, to);
-}
-
-std::string remove_stamp(const std::string & s)
-{
-    int i;
-    for(i = s.length() - 1; i >= 0; i--)
-    {
-        if(s[i] == '_')
-            break;
-    }
-    return s.substr(0, i);
-}
-
-z3::expr remove_stamp(const z3::expr & e)
-{
-    std::vector<z3::expr> states = pick_states(e);
-    z3::expr_vector from(context), to(context);
-    for(int j = 0; j < states.size(); j++)
-    {
-        std::string temp = remove_stamp(states[j].decl().name().str());
-        from.push_back(states[j]);
-        to.push_back(context.bool_const(temp.c_str()));
-    }
-    z3::expr temp = e;
-    return temp.substitute(from, to);
-}
-
 }
 
 #endif

@@ -1,0 +1,8 @@
+#!/bin/bash
+echo "# Deleting old file..."
+rm ./compiled/make_product.exe
+echo "# Building new file..."
+g++ make_product.cpp -o compiled/make_product.exe -std=c++11 -lz3
+echo "# Checking emptiness..."
+echo "--------------------"
+./compiled/make_product.exe $1 $2 $3 $4 $5

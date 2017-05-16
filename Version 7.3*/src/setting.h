@@ -4,6 +4,6 @@
 #define MAX_SYMBOL 20
 #define RENAME_SYMBOL "_new"
 
-#define BACK_STEP 5
+#define CONTAINER_MODE 2    // 1 = Queue 2 = Stack
 
 #endif

@@ -59,6 +59,7 @@ public:
     void all_set_invalid()
     {
         _valid = false;
+        //std::cout << "--- Removed : <" << _step << "," << _e << ">" << std::endl;
         for(int i = 0; i < _nb_down; i++)
             _down[i]->all_set_invalid();
     }
